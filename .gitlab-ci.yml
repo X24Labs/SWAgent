@@ -51,7 +51,7 @@ publish:npm:
   tags:
     - main
   image: node:20-slim
-  needs: [typecheck, test:unit]
+  needs: [build, typecheck, test:unit]
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/
   script:
@@ -65,7 +65,11 @@ publish:npm:
         dir="packages/${pkg}"
         echo "--- ${dir} ---"
         cd "${dir}"
+        # Copy root README so npm shows it
+        cp "${CI_PROJECT_DIR}/README.md" README.md
+        # Update version
         jq --arg v "${VERSION}" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+        # Replace workspace:* with actual version
         jq --arg v "${VERSION}" '
           if .dependencies then
             .dependencies |= with_entries(
