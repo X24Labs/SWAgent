@@ -1,5 +1,6 @@
 stages:
   - build
+  - test
 
 build:
   stage: build
@@ -7,5 +8,14 @@ build:
     - main
   image: oven/bun:1
   script:
-    - bun install --frozen-lockfile
+    - bun install
     - bun run build
+
+typecheck:
+  stage: test
+  tags:
+    - main
+  image: oven/bun:1
+  script:
+    - bun install
+    - bun run typecheck
