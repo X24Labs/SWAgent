@@ -28,5 +28,14 @@
     "ai-first",
     "documentation"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/24labs/swagent.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://swagent.dev"
 }

@@ -31,5 +31,14 @@
     "@types/express": "^5.0.6",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.2.2"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/24labs/swagent.git",
+    "directory": "packages/express"
+  },
+  "homepage": "https://swagent.dev"
 }

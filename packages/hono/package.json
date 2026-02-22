@@ -26,5 +26,14 @@
   },
   "peerDependencies": {
     "hono": "^4.12.1"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/24labs/swagent.git",
+    "directory": "packages/hono"
+  },
+  "homepage": "https://swagent.dev"
 }
