@@ -81,6 +81,10 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
     </section>`;
   }
 
+  // Inline SVG logo (small, optimized for 20px rendering)
+  const logoSvg = (size: number) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#a78bfa"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient></defs><circle cx="16" cy="16" r="15" fill="url(#sg)"/><path d="M10 10C10 10 8.5 10 8.5 11.5L8.5 14.5C8.5 15.5 7 16 7 16 7 16 8.5 16.5 8.5 17.5L8.5 20.5C8.5 22 10 22 10 22" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M22 10C22 10 23.5 10 23.5 11.5L23.5 14.5C23.5 15.5 25 16 25 16 25 16 23.5 16.5 23.5 17.5L23.5 20.5C23.5 22 22 22 22 22" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/><g transform="translate(16,16)"><line x1="0" y1="-3.5" x2="0" y2="3.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="-3" y1="-1.8" x2="3" y2="1.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="-3" y1="1.8" x2="3" y2="-1.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g></svg>`;
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -320,6 +324,29 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       color: var(--accent);
     }
 
+    /* Brand header */
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1.5rem 1rem 0;
+      opacity: 0.5;
+      transition: opacity 0.2s;
+    }
+    .brand:hover { opacity: 0.8; }
+    .brand a {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    .brand svg { flex-shrink: 0; }
+
     /* Footer */
     footer {
       text-align: center;
@@ -328,9 +355,30 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       font-size: 0.8rem;
     }
     footer a { color: var(--accent); text-decoration: none; }
+    .powered-by {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+    .powered-by:hover { opacity: 1; }
+    .powered-by a {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.78rem;
+    }
+    .powered-by a:hover { color: var(--accent); }
+    .powered-by svg { flex-shrink: 0; }
   </style>
 </head>
 <body>
+  ${showPoweredBy ? `<div class="brand">
+    <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(18)} swagent</a>
+  </div>` : ''}
   <main>
     <div class="hero">
       <span class="hero-label">AI-First API Documentation</span>
@@ -379,7 +427,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
 
   <footer>
     <p>${projectName} v${version}</p>
-    ${showPoweredBy ? '<p>Powered by <a href="https://swagent.dev">swagent</a></p>' : ''}
+    ${showPoweredBy ? `<p class="powered-by">Powered by <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(16)} swagent</a></p>` : ''}
   </footer>
 </body>
 </html>`;
