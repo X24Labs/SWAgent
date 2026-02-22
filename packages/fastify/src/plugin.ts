@@ -1,8 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import {
-  generateLlmsTxt,
-  generateHumanDocs,
-  generateHtmlLanding,
+  generate,
   type SwagentOptions,
   type OpenAPISpec,
 } from '@swagent/core';
@@ -16,35 +14,49 @@ export async function swagentFastify(
   fastify: FastifyInstance,
   options: SwagentFastifyOptions = {},
 ): Promise<void> {
+  const routes = options.routes || {};
   let llmsTxtContent = '';
   let humanDocsContent = '';
   let htmlContent = '';
 
-  fastify.get('/', hiddenSchema, async (_request, reply) => {
-    return reply.type('text/html; charset=utf-8').send(htmlContent);
-  });
+  if (routes.landing !== false) {
+    const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
+    fastify.get(landingPath, hiddenSchema, async (_request, reply) => {
+      return reply.type('text/html; charset=utf-8').send(htmlContent);
+    });
+  }
 
-  fastify.get('/openapi.json', hiddenSchema, async (_request, reply) => {
-    const spec = (fastify as any).swagger();
-    return reply.type('application/json; charset=utf-8').send(spec);
-  });
+  if (routes.openapi !== false) {
+    const openapiPath = typeof routes.openapi === 'string' ? routes.openapi : '/openapi.json';
+    fastify.get(openapiPath, hiddenSchema, async (_request, reply) => {
+      const spec = (fastify as any).swagger();
+      return reply.type('application/json; charset=utf-8').send(spec);
+    });
+  }
 
-  fastify.get('/llms.txt', hiddenSchema, async (_request, reply) => {
-    return reply.type('text/plain; charset=utf-8').send(llmsTxtContent);
-  });
+  if (routes.llmsTxt !== false) {
+    const llmsPath = typeof routes.llmsTxt === 'string' ? routes.llmsTxt : '/llms.txt';
+    fastify.get(llmsPath, hiddenSchema, async (_request, reply) => {
+      return reply.type('text/plain; charset=utf-8').send(llmsTxtContent);
+    });
+  }
 
-  fastify.get('/to-humans.md', hiddenSchema, async (_request, reply) => {
-    return reply.type('text/markdown; charset=utf-8').send(humanDocsContent);
-  });
+  if (routes.humanDocs !== false) {
+    const humanPath = typeof routes.humanDocs === 'string' ? routes.humanDocs : '/to-humans.md';
+    fastify.get(humanPath, hiddenSchema, async (_request, reply) => {
+      return reply.type('text/markdown; charset=utf-8').send(humanDocsContent);
+    });
+  }
 
   fastify.addHook('onReady', async () => {
     try {
       const spec = (fastify as any).swagger() as OpenAPISpec;
-      llmsTxtContent = generateLlmsTxt(spec, options);
-      humanDocsContent = generateHumanDocs(spec, options);
-      htmlContent = generateHtmlLanding(spec, options);
+      const output = generate(spec, options);
+      llmsTxtContent = output.llmsTxt;
+      humanDocsContent = output.humanDocs;
+      htmlContent = output.htmlLanding;
       fastify.log.info(
-        `swagent: / (${htmlContent.length}B), /llms.txt (${llmsTxtContent.length}B), /to-humans.md (${humanDocsContent.length}B)`,
+        `swagent: landing (${htmlContent.length}B), llms.txt (${llmsTxtContent.length}B), humans.md (${humanDocsContent.length}B)`,
       );
     } catch (err) {
       fastify.log.error(err, 'swagent: failed to generate docs');
