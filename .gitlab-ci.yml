@@ -7,5 +7,6 @@ build:
     - main
   image: oven/bun:1
   script:
-    - bun install --frozen-lockfile
+    - bun install
     - bun run build
+    - bun run typecheck
