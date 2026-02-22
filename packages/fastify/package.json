@@ -22,12 +22,14 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@swagent/core": "workspace:*"
+    "@swagent/core": "workspace:*",
+    "fastify-plugin": "^5.1.0"
   },
   "peerDependencies": {
     "fastify": ">=4.0.0"
   },
   "devDependencies": {
+    "@fastify/swagger": "^9.7.0",
     "fastify": "^5.7.4"
   }
 }
