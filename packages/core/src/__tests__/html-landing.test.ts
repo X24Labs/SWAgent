@@ -68,32 +68,11 @@ describe('generateHtmlLanding', () => {
     expect(result).toContain('Tell your AI agent');
   });
 
-  it('hides prompt when showPrompt is false', () => {
-    const result = generateHtmlLanding(sampleSpec, {
-      landing: { showPrompt: false },
-    });
-    // The CSS class still exists in <style>, but the div should not be rendered
-    expect(result).not.toContain('Tell your AI agent');
-  });
-
-  it('uses custom prompt text', () => {
-    const result = generateHtmlLanding(sampleSpec, {
-      landing: { promptText: 'Read the docs at petstore.io' },
-    });
-    expect(result).toContain('Read the docs at petstore.io');
-  });
-
-  it('includes powered-by badge by default', () => {
+  it('always includes powered-by badge and brand', () => {
     const result = generateHtmlLanding(sampleSpec);
-    expect(result).toContain('swagent');
+    expect(result).toContain('SWAgent');
     expect(result).toContain('swagent.dev');
-  });
-
-  it('hides powered-by when showPoweredBy is false', () => {
-    const result = generateHtmlLanding(sampleSpec, {
-      landing: { showPoweredBy: false },
-    });
-    expect(result).not.toContain('swagent.dev');
+    expect(result).toContain('Powered by');
   });
 
   it('handles empty spec', () => {
