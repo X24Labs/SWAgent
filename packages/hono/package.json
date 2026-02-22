@@ -1,0 +1,30 @@
+{
+  "name": "@swagent/hono",
+  "version": "0.1.0",
+  "description": "Swagent middleware for Hono. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@swagent/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "hono": ">=4.0.0"
+  }
+}
