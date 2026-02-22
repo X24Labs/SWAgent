@@ -1,29 +1,50 @@
-# swagent
+<p align="center">
+  <img src="assets/logo/swagent-logo.svg" alt="SWAgent" width="80" height="80">
+</p>
 
-AI-first API documentation from your OpenAPI spec. Drop-in middleware for Fastify, Express, and Hono, or generate static files with the CLI.
+<h1 align="center">SWAgent</h1>
 
-**One spec, three outputs:**
+<p align="center">
+  AI-first API documentation from your OpenAPI spec.<br>
+  Drop-in middleware for Fastify, Express, and Hono, or generate static files with the CLI.
+</p>
 
-| Format | For | Size |
-|--------|-----|------|
-| `llms.txt` | LLM agents (token-optimized) | ~75% smaller than markdown |
-| `to-humans.md` | Developers (full markdown with ToC) | Complete reference |
-| `index.html` | Discovery (semantic HTML, zero JS) | Dark-themed landing page |
+<p align="center">
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#frameworks">Frameworks</a> &middot;
+  <a href="#cli">CLI</a> &middot;
+  <a href="#configuration">Config</a>
+</p>
+
+---
+
+## Why
+
+LLM agents read your docs too. Swagger UI is built for humans clicking through a browser. SWAgent generates three outputs from one OpenAPI spec:
+
+| Output | For | What it is |
+|--------|-----|------------|
+| **`llms.txt`** | AI agents | Token-optimized compact notation, ~60% smaller than raw JSON |
+| **`to-humans.md`** | Developers | Full markdown reference with ToC, parameter tables, response schemas |
+| **`index.html`** | Discovery | Semantic HTML landing page, dark-themed, zero JavaScript |
+
+Your API becomes readable by both humans and machines without maintaining separate docs.
 
 ## What llms.txt looks like
 
-A typical spec compresses to something like this:
+A 20-endpoint OpenAPI spec compresses into something like this:
 
 ```
-# Acme API
+# Pet Store API
 
-> Backend for Acme Corp mobile and web apps.
+> A sample API for managing pets and orders.
 
-Base: https://api.acme.io
-Docs: [HTML](https://api.acme.io/) | [OpenAPI JSON](https://api.acme.io/openapi.json)
+Base: https://api.petstore.io
+Docs: [HTML](https://api.petstore.io/) | [OpenAPI JSON](https://api.petstore.io/openapi.json)
 
 ## Auth Methods
 - JWT: `Authorization: Bearer <token>` via POST /auth/login
+- API Key: `X-API-Key: <key>` header
 
 ## Conventions
 - Auth: JWT = Bearer token, KEY = API Key, JWT|KEY = either, NONE = no auth
@@ -38,20 +59,44 @@ Docs: [HTML](https://api.acme.io/) | [OpenAPI JSON](https://api.acme.io/openapi.
 Body: `{email*, password*}`
 200: `{token, expiresIn:number}`
 
-## Users
+## Pets
 
-### GET /users - List users | JWT
-Query: ?page:integer ?q*
-200: `[{id, name, role}]`
+### GET /pets - List pets | JWT
+Query: ?page:integer ?limit:integer ?species
+200: `{data:[{id, name, species, age:number}], total:number}`
 
-### GET /users/{id} - Get user by ID | JWT
-Path: :id
-200: `{id, name, email}`
+### POST /pets - Create pet | JWT
+Body: `{name*, species*, age:number, vaccinated:boolean}`
+200: `{id, name}`
+
+### GET /pets/{petId} - Get pet | JWT|KEY
+Path: :petId*
+200: `{id, name, species, age:number, vaccinated:boolean, owner:{id, name}}`
 ```
 
-Compact notation: `*` = required, `:type` = non-string, `{...}` = object, `[...]` = array. Auth shorthands: JWT, KEY, NONE.
+Compact notation: `*` = required, `:type` = non-string, `{...}` = object, `[...]` = array.
+
+An LLM agent reads this with minimal token cost and immediately knows every endpoint, auth method, and schema.
 
 ## Quick start
+
+### Three lines, four endpoints
+
+```typescript
+import { swagentFastify } from '@swagent/fastify';
+
+// After registering @fastify/swagger with your routes:
+app.register(swagentFastify, { baseUrl: 'https://api.example.com' });
+
+// GET /           -> HTML landing page
+// GET /llms.txt   -> Token-optimized for AI agents
+// GET /to-humans.md -> Full markdown docs
+// GET /openapi.json -> OpenAPI JSON spec
+```
+
+That's it. Your API now serves AI-readable docs alongside human ones.
+
+## Frameworks
 
 ### Fastify
 
@@ -78,15 +123,9 @@ app.register(swagger, {
 app.register(swagentFastify, {
   baseUrl: 'https://api.example.com',
 });
-
-// Serves:
-//   GET /           -> HTML landing page
-//   GET /llms.txt   -> Token-optimized for LLM agents
-//   GET /to-humans.md -> Full markdown docs
-//   GET /openapi.json -> OpenAPI JSON spec
 ```
 
-The Fastify adapter reads the spec from `@fastify/swagger` automatically. Content is generated once at startup.
+Reads the spec from `@fastify/swagger` automatically. Content is generated once at startup.
 
 ### Express
 
@@ -107,7 +146,7 @@ app.use(swagentExpress(spec, { baseUrl: 'https://api.example.com' }));
 app.use('/docs', swagentExpress(spec, { baseUrl: 'https://api.example.com' }));
 ```
 
-The Express adapter takes the OpenAPI spec as a parameter. Content is lazily cached on first request.
+Takes the OpenAPI spec as a parameter. Content is lazily cached on first request.
 
 ### Hono
 
@@ -128,7 +167,24 @@ app.route('/', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 app.route('/docs', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 ```
 
-### CLI
+### Core (programmatic)
+
+```bash
+npm install @swagent/core
+```
+
+```typescript
+import { generate } from '@swagent/core';
+
+const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
+const output = generate(spec, { baseUrl: 'https://api.example.com' });
+
+output.llmsTxt;      // Token-optimized markdown string
+output.humanDocs;    // Full markdown string
+output.htmlLanding;  // Complete HTML string
+```
+
+## CLI
 
 ```bash
 npx swagent generate ./openapi.json
@@ -157,22 +213,20 @@ swagent generate ./spec.json -f html
 
 Outputs: `llms.txt`, `to-humans.md`, `index.html`
 
-### Core (programmatic)
+## Token optimization
 
-```bash
-npm install @swagent/core
-```
+SWAgent compresses your OpenAPI spec into a compact notation designed to minimize token usage while preserving all the information an LLM agent needs.
 
-```typescript
-import { generate } from '@swagent/core';
+| Technique | Example |
+|-----------|---------|
+| Required fields | `name*` instead of `"name": { "required": true }` |
+| Type annotations | `age:number` instead of `"age": { "type": "number" }` |
+| Inline objects | `{id, name, email}` instead of full JSON schema |
+| Auth shorthands | `JWT`, `KEY`, `NONE` instead of full security definitions |
+| Convention dedup | Common errors defined once, not repeated per endpoint |
+| Response focus | Only 200 responses (errors covered by conventions) |
 
-const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
-const output = generate(spec, { baseUrl: 'https://api.example.com' });
-
-output.llmsTxt;      // Token-optimized markdown string
-output.humanDocs;    // Full markdown string
-output.htmlLanding;  // Complete HTML string
-```
+Result: **~60% smaller** than raw OpenAPI JSON, **~50% smaller** than standard markdown docs.
 
 ## Configuration
 
@@ -223,15 +277,26 @@ app.use(swagentExpress(spec, {
 }));
 ```
 
+## Route map
+
+Every adapter serves the same four routes by default:
+
+| Route | Content-Type | Description |
+|-------|-------------|-------------|
+| `GET /` | `text/html` | Landing page with endpoint overview, auth info, format links |
+| `GET /llms.txt` | `text/plain` | Compact notation optimized for LLM token budgets |
+| `GET /to-humans.md` | `text/markdown` | Full reference with ToC, parameter tables, schemas |
+| `GET /openapi.json` | `application/json` | Raw OpenAPI spec passthrough |
+
 ## Packages
 
 | Package | Description | Peer deps |
 |---------|-------------|-----------|
-| `@swagent/core` | Generators and types | none |
-| `@swagent/fastify` | Fastify plugin | `fastify >=4` |
-| `@swagent/express` | Express middleware | `express >=4` |
-| `@swagent/hono` | Hono middleware | `hono >=4` |
-| `swagent` | CLI tool | none |
+| [`@swagent/core`](packages/core) | Generators and types | none |
+| [`@swagent/fastify`](packages/fastify) | Fastify plugin | `fastify >=4` |
+| [`@swagent/express`](packages/express) | Express middleware | `express >=5` |
+| [`@swagent/hono`](packages/hono) | Hono middleware | `hono >=4` |
+| [`swagent`](packages/cli) | CLI tool | none |
 
 ## Development
 
@@ -241,6 +306,14 @@ bun run build
 bun run test -- --run
 bun run typecheck
 ```
+
+## Contributing
+
+1. Fork the repo
+2. Create your branch (`git checkout -b feature/thing`)
+3. Write tests for new functionality
+4. Make sure all 116 tests pass (`bun run test -- --run`)
+5. Submit a PR
 
 ## License
 
