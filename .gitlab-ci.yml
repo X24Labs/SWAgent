@@ -96,6 +96,8 @@ sync:github:
     - apk add --no-cache git
     - git clone "${CI_REPOSITORY_URL}" repo
     - cd repo
+    - git config user.email "ci@24labs.dev"
+    - git config user.name "24Labs CI"
     - git fetch origin --tags
     - git remote add github "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
     # Remove CLAUDE.md from GitHub mirror (keep only in GitLab)
