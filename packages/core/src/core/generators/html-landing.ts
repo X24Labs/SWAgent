@@ -24,6 +24,9 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   const tagGroups = groupPathsByTag(spec);
   const tagOrder: string[] = (spec.tags || []).map((t) => t.name);
   const securitySchemes = spec.components?.securitySchemes;
+  const showPrompt = options.landing?.showPrompt !== false;
+  const promptText = options.landing?.promptText || `Learn ${baseUrl || 'this API'}`;
+  const showPoweredBy = options.landing?.showPoweredBy !== false;
 
   let totalEndpoints = 0;
   for (const endpoints of Object.values(tagGroups)) {
@@ -333,9 +336,9 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       <span class="hero-label">AI-First API Documentation</span>
       <h1>${projectName}</h1>
       <p>${description}</p>
-      <div class="hero-prompt">
-        <strong>&gt;</strong> Tell your AI agent: <span class="accent">"Learn ${escapeHtml(baseUrl || 'this API')}"</span>
-      </div>
+      ${showPrompt ? `<div class="hero-prompt">
+        <strong>&gt;</strong> Tell your AI agent: <span class="accent">"${escapeHtml(promptText)}"</span>
+      </div>` : ''}
     </div>
 
     <div class="stats">
@@ -376,6 +379,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
 
   <footer>
     <p>${projectName} v${version}</p>
+    ${showPoweredBy ? '<p>Powered by <a href="https://swagent.dev">swagent</a></p>' : ''}
   </footer>
 </body>
 </html>`;
