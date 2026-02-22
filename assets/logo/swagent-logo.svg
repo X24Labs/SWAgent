@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a78bfa"/>
+      <stop offset="100%" style="stop-color:#818cf8"/>
+    </linearGradient>
+    <linearGradient id="grad-dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c4b5fd"/>
+      <stop offset="100%" style="stop-color:#a5b4fc"/>
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="url(#grad)"/>
+  <!-- Curly brace left { -->
+  <path d="M160 160 C160 160, 140 160, 140 180 L140 230 C140 250, 120 256, 120 256 C120 256, 140 262, 140 282 L140 332 C140 352, 160 352, 160 352" stroke="white" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Curly brace right } -->
+  <path d="M352 160 C352 160, 372 160, 372 180 L372 230 C372 250, 392 256, 392 256 C392 256, 372 262, 372 282 L372 332 C372 352, 352 352, 352 352" stroke="white" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Asterisk/star in center (agent spark) -->
+  <g transform="translate(256, 256)">
+    <line x1="0" y1="-40" x2="0" y2="40" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    <line x1="-35" y1="-20" x2="35" y2="20" stroke="white" stroke-width="18" stroke-linecap="round"/>
+    <line x1="-35" y1="20" x2="35" y2="-20" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  </g>
+</svg>
