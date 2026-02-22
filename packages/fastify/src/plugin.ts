@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import fp from 'fastify-plugin';
 import {
   generate,
   type SwagentOptions,
@@ -10,7 +11,7 @@ export interface SwagentFastifyOptions extends SwagentOptions {}
 // hide: true is from @fastify/swagger, not in base FastifySchema
 const hiddenSchema = { schema: { hide: true } as Record<string, unknown> };
 
-export async function swagentFastify(
+async function swagentPlugin(
   fastify: FastifyInstance,
   options: SwagentFastifyOptions = {},
 ): Promise<void> {
@@ -66,3 +67,8 @@ export async function swagentFastify(
     }
   });
 }
+
+export const swagentFastify = fp(swagentPlugin, {
+  name: '@swagent/fastify',
+  fastify: '>=4.0.0',
+});
