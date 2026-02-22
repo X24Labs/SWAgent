@@ -1,0 +1,32 @@
+{
+  "name": "@swagent/core",
+  "version": "0.1.0",
+  "description": "AI-first API documentation generator. Converts OpenAPI specs into token-optimized llms.txt, human-readable markdown, and semantic HTML.",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "llms-txt",
+    "api-docs",
+    "ai-first",
+    "documentation"
+  ],
+  "license": "MIT"
+}

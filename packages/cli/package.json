@@ -1,0 +1,21 @@
+{
+  "name": "swagent",
+  "version": "0.1.0",
+  "description": "CLI tool for generating AI-first API documentation from OpenAPI specs.",
+  "type": "module",
+  "bin": {
+    "swagent": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@swagent/core": "workspace:*"
+  }
+}
