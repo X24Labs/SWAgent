@@ -31,5 +31,14 @@
   "devDependencies": {
     "@fastify/swagger": "^9.7.0",
     "fastify": "^5.7.4"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/24labs/swagent.git",
+    "directory": "packages/fastify"
+  },
+  "homepage": "https://swagent.dev"
 }
