@@ -21,6 +21,16 @@
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "llms-txt",
+    "api-docs",
+    "ai-first",
+    "documentation",
+    "hono",
+    "middleware"
+  ],
   "license": "MIT",
   "dependencies": {
     "@swagent/core": "workspace:*"
