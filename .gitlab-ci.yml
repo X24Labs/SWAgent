@@ -10,3 +10,4 @@ build:
     - bun install
     - bun run build
     - bun run typecheck
+    - bun run test -- --run
