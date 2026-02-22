@@ -24,9 +24,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   const tagGroups = groupPathsByTag(spec);
   const tagOrder: string[] = (spec.tags || []).map((t) => t.name);
   const securitySchemes = spec.components?.securitySchemes;
-  const showPrompt = options.landing?.showPrompt !== false;
-  const promptText = options.landing?.promptText || `Learn ${baseUrl || 'this API'}`;
-  const showPoweredBy = options.landing?.showPoweredBy !== false;
+  const promptText = `Learn ${baseUrl || 'this API'}`;
 
   let totalEndpoints = 0;
   for (const endpoints of Object.values(tagGroups)) {
@@ -119,7 +117,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
     /* Hero */
     .hero {
       text-align: center;
-      padding: 6rem 1.5rem 4rem;
+      padding: 3rem 1.5rem 4rem;
       max-width: 720px;
       margin: 0 auto;
       position: relative;
@@ -144,7 +142,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       border: 1px solid rgba(129, 140, 248, 0.25);
       padding: 0.3rem 0.9rem;
       border-radius: 999px;
-      margin-bottom: 1.5rem;
+      margin-bottom: 3.5rem;
       letter-spacing: 0.03em;
       box-shadow: var(--glow-sm);
     }
@@ -324,27 +322,27 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       color: var(--accent);
     }
 
-    /* Brand header */
+    /* Brand header (inside hero) */
     .brand {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 0.5rem;
-      padding: 1.5rem 1rem 0;
-      opacity: 0.5;
-      transition: opacity 0.2s;
+      gap: 0.6rem;
+      margin-bottom: 0.6rem;
     }
-    .brand:hover { opacity: 0.8; }
     .brand a {
       display: flex;
       align-items: center;
-      gap: 0.45rem;
+      gap: 0.55rem;
       text-decoration: none;
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      font-weight: 500;
-      letter-spacing: 0.02em;
+      color: var(--text);
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      opacity: 0.85;
+      transition: opacity 0.2s;
     }
+    .brand a:hover { opacity: 1; }
     .brand svg { flex-shrink: 0; }
 
     /* Footer */
@@ -376,17 +374,17 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   </style>
 </head>
 <body>
-  ${showPoweredBy ? `<div class="brand">
-    <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(18)} swagent</a>
-  </div>` : ''}
   <main>
     <div class="hero">
+      <div class="brand">
+        <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(28)} SWAgent</a>
+      </div>
       <span class="hero-label">AI-First API Documentation</span>
       <h1>${projectName}</h1>
       <p>${description}</p>
-      ${showPrompt ? `<div class="hero-prompt">
+      <div class="hero-prompt">
         <strong>&gt;</strong> Tell your AI agent: <span class="accent">"${escapeHtml(promptText)}"</span>
-      </div>` : ''}
+      </div>
     </div>
 
     <div class="stats">
@@ -427,7 +425,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
 
   <footer>
     <p>${projectName} v${version}</p>
-    ${showPoweredBy ? `<p class="powered-by">Powered by <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(16)} swagent</a></p>` : ''}
+    <p class="powered-by">Powered by <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(16)} SWAgent</a></p>
   </footer>
 </body>
 </html>`;

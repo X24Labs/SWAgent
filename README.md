@@ -196,13 +196,6 @@ All adapters and the CLI accept the same options:
     humanDocs: '/to-humans.md', // or false to disable
     openapi: '/openapi.json',  // or false to disable
   },
-
-  // HTML landing page config
-  landing: {
-    showPoweredBy: true,        // "Powered by swagent" footer badge
-    showPrompt: true,           // AI prompt suggestion in hero
-    promptText: 'Learn ...',    // Custom prompt text
-  },
 }
 ```
 
