@@ -1,6 +1,43 @@
+export interface SwagentRoutes {
+  /** Path for llms.txt endpoint. Set to false to disable. Default: '/llms.txt' */
+  llmsTxt?: string | false;
+  /** Path for human-readable markdown. Set to false to disable. Default: '/to-humans.md' */
+  humanDocs?: string | false;
+  /** Path for HTML landing page. Set to false to disable. Default: '/' */
+  landing?: string | false;
+  /** Path for OpenAPI JSON. Set to false to disable. Default: '/openapi.json' */
+  openapi?: string | false;
+}
+
+export interface SwagentLandingConfig {
+  /** Show "Powered by swagent" badge in footer. Default: true */
+  showPoweredBy?: boolean;
+  /** Show AI prompt suggestion in hero. Default: true */
+  showPrompt?: boolean;
+  /** Custom prompt text. Default: 'Learn <baseUrl>' */
+  promptText?: string;
+}
+
 export interface SwagentOptions {
+  /** Base URL of the API (e.g. 'https://api.example.com') */
   baseUrl?: string;
+  /** Override the API title from the spec */
   title?: string;
+  /** Color theme for HTML landing page. Default: 'dark' */
+  theme?: 'dark' | 'light' | 'auto';
+  /** Route paths configuration */
+  routes?: SwagentRoutes;
+  /** Landing page configuration */
+  landing?: SwagentLandingConfig;
+}
+
+export interface SwagentOutput {
+  /** Token-optimized markdown for LLM agents */
+  llmsTxt: string;
+  /** Human-readable markdown documentation */
+  humanDocs: string;
+  /** Semantic HTML landing page */
+  htmlLanding: string;
 }
 
 export interface EndpointInfo {
