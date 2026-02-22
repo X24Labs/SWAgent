@@ -160,6 +160,46 @@ app.route('/', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 app.route('/docs', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 ```
 
+### NestJS
+
+```bash
+npm install @swagent/nestjs
+```
+
+**Option 1: Module pattern** (DI-based, NestJS-idiomatic)
+
+```typescript
+import { SwagentModule } from '@swagent/nestjs';
+
+@Module({
+  imports: [
+    SwagentModule.register({
+      spec: openApiDocument,
+      baseUrl: 'https://api.example.com',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+**Option 2: Setup pattern** (mirrors `SwaggerModule.setup()`)
+
+```typescript
+import { SwagentModule } from '@swagent/nestjs';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+
+const config = new DocumentBuilder()
+  .setTitle('My API')
+  .setVersion('1.0')
+  .build();
+const document = SwaggerModule.createDocument(app, config);
+
+SwaggerModule.setup('api', app, document);
+SwagentModule.setup(app, document, { path: '/docs' });
+```
+
+The module pattern uses NestJS DI with lazy caching. The setup pattern registers routes directly on the HTTP adapter with full route customization.
+
 ### Core (programmatic)
 
 ```bash
@@ -289,6 +329,7 @@ Every adapter serves the same four routes by default:
 | [`@swagent/fastify`](packages/fastify) | Fastify plugin | `fastify >=4` |
 | [`@swagent/express`](packages/express) | Express middleware | `express >=5` |
 | [`@swagent/hono`](packages/hono) | Hono middleware | `hono >=4` |
+| [`@swagent/nestjs`](packages/nestjs) | NestJS module | `@nestjs/common >=10`, `@nestjs/core >=10` |
 | [`swagent`](packages/cli) | CLI tool | none |
 
 ## Development
@@ -305,7 +346,7 @@ bun run typecheck
 1. Fork the repo
 2. Create your branch (`git checkout -b feature/thing`)
 3. Write tests for new functionality
-4. Make sure all 116 tests pass (`bun run test -- --run`)
+4. Make sure all tests pass (`bun run test -- --run`)
 5. Submit a PR
 
 ## License
