@@ -7,7 +7,7 @@
   "scripts": {
     "build": "bun run --filter '@swagent/core' build && bun run --filter '!@swagent/core' build",
     "dev": "bun run --filter '*' dev",
-    "typecheck": "bun run --filter '*' typecheck",
+    "typecheck": "bun run --filter '@swagent/core' build && bun run --filter '*' typecheck",
     "test": "vitest",
     "lint": "eslint packages/",
     "format": "prettier --write 'packages/*/src/**/*.ts'"
