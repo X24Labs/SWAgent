@@ -1,5 +1,6 @@
 stages:
   - build
+  - test
 
 build:
   stage: build
@@ -9,5 +10,27 @@ build:
   script:
     - bun install
     - bun run build
-    - bun run typecheck
+  artifacts:
+    paths:
+      - node_modules/
+      - packages/*/dist/
+      - packages/*/node_modules/
+    expire_in: 10 mins
+
+typecheck:
+  stage: test
+  tags:
+    - main
+  image: oven/bun:1
+  needs: [build]
+  script:
+    - bun run --filter '*' typecheck
+
+test:unit:
+  stage: test
+  tags:
+    - main
+  image: oven/bun:1
+  needs: [build]
+  script:
     - bun run test -- --run
