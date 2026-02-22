@@ -80,6 +80,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   }
 
   // Inline SVG logo (small, optimized for 20px rendering)
+  const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#a78bfa"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient></defs><circle cx="16" cy="16" r="15" fill="url(#sg)"/><path d="M10 10C10 10 8.5 10 8.5 11.5L8.5 14.5C8.5 15.5 7 16 7 16 7 16 8.5 16.5 8.5 17.5L8.5 20.5C8.5 22 10 22 10 22" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M22 10C22 10 23.5 10 23.5 11.5L23.5 14.5C23.5 15.5 25 16 25 16 25 16 23.5 16.5 23.5 17.5L23.5 20.5C23.5 22 22 22 22 22" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/><g transform="translate(16,16)"><line x1="0" y1="-3.5" x2="0" y2="3.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="-3" y1="-1.8" x2="3" y2="1.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="-3" y1="1.8" x2="3" y2="-1.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g></svg>`;
   const logoSvg = (size: number) =>
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#a78bfa"/><stop offset="100%" style="stop-color:#818cf8"/></linearGradient></defs><circle cx="16" cy="16" r="15" fill="url(#sg)"/><path d="M10 10C10 10 8.5 10 8.5 11.5L8.5 14.5C8.5 15.5 7 16 7 16 7 16 8.5 16.5 8.5 17.5L8.5 20.5C8.5 22 10 22 10 22" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M22 10C22 10 23.5 10 23.5 11.5L23.5 14.5C23.5 15.5 25 16 25 16 25 16 23.5 16.5 23.5 17.5L23.5 20.5C23.5 22 22 22 22 22" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none"/><g transform="translate(16,16)"><line x1="0" y1="-3.5" x2="0" y2="3.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="-3" y1="-1.8" x2="3" y2="1.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/><line x1="-3" y1="1.8" x2="3" y2="-1.8" stroke="#fff" stroke-width="2" stroke-linecap="round"/></g></svg>`;
 
@@ -90,6 +91,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${projectName}</title>
   <meta name="description" content="${description}">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(faviconSvg)}">
   <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-optimized API reference">
   <style>
     :root {
