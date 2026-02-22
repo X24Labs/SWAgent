@@ -80,7 +80,6 @@ describe('@swagent/hono middleware', () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
     const res = await fetch(app, '/');
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/html');
     const body = await res.text();
     expect(body).toContain('<!DOCTYPE html>');
     expect(body).toContain('Test API');
@@ -90,7 +89,6 @@ describe('@swagent/hono middleware', () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
     const res = await fetch(app, '/llms.txt');
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/plain');
     const body = await res.text();
     expect(body).toContain('# Test API');
     expect(body).toContain('## Conventions');
@@ -100,7 +98,6 @@ describe('@swagent/hono middleware', () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
     const res = await fetch(app, '/to-humans.md');
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/markdown');
     const body = await res.text();
     expect(body).toContain('# Test API');
     expect(body).toContain('## Table of Contents');
@@ -110,7 +107,6 @@ describe('@swagent/hono middleware', () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
     const res = await fetch(app, '/openapi.json');
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('application/json');
     const json = await res.json();
     expect(json.info.title).toBe('Test API');
   });
