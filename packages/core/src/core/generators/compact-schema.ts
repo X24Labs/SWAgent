@@ -12,6 +12,12 @@ import type { SchemaObject, SecurityRequirement, ParameterObject } from '../type
 export function compactSchema(schema: SchemaObject | null, depth: number = 0): string {
   if (!schema || depth > 3) return '...';
 
+  // oneOf / anyOf → union notation: `{a, b} | {c, d}`
+  if (schema.oneOf || schema.anyOf) {
+    const variants = (schema.oneOf || schema.anyOf) as SchemaObject[];
+    return variants.map((v) => compactSchema(v, depth)).join(' | ');
+  }
+
   if (schema.type === 'object' || schema.properties) {
     const props = schema.properties || {};
     const required = new Set(schema.required || []);
@@ -81,6 +87,12 @@ export function formatQueryCompact(params: ParameterObject[]): string {
 export function prettySchema(schema: SchemaObject | null, depth: number = 0): string {
   if (!schema || depth > 3) return '...';
   const indent = '  '.repeat(depth);
+
+  // oneOf / anyOf → show variants separated by " | "
+  if (schema.oneOf || schema.anyOf) {
+    const variants = (schema.oneOf || schema.anyOf) as SchemaObject[];
+    return variants.map((v) => prettySchema(v, depth)).join(' | ');
+  }
 
   if (schema.type === 'object' || schema.properties) {
     const props = schema.properties || {};
