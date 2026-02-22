@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/24labs/swagent/main/assets/social-preview.png" alt="SWAgent - AI-first API documentation" width="640">
+  <img src="https://raw.githubusercontent.com/X24Labs/SWAgent/main/assets/social-preview.png" alt="SWAgent - AI-first API documentation" width="640">
 </p>
 
 <p align="center">

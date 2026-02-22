@@ -38,7 +38,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/24labs/swagent.git",
+    "url": "https://github.com/X24Labs/SWAgent.git",
     "directory": "packages/fastify"
   },
   "homepage": "https://swagent.dev"
