@@ -1,12 +1,5 @@
 <p align="center">
-  <img src="assets/logo/swagent-logo.svg" alt="SWAgent" width="80" height="80">
-</p>
-
-<h1 align="center">SWAgent</h1>
-
-<p align="center">
-  AI-first API documentation from your OpenAPI spec.<br>
-  Drop-in middleware for Fastify, Express, and Hono, or generate static files with the CLI.
+  <img src="assets/social-preview.png" alt="SWAgent - AI-first API documentation" width="640">
 </p>
 
 <p align="center">
