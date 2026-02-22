@@ -100,8 +100,8 @@ sync:github:
     - git config user.name "24Labs CI"
     - git fetch origin --tags
     - git remote add github "https://${GITHUB_TOKEN}@github.com/${GITHUB_REPO}.git"
-    # Remove CLAUDE.md from GitHub mirror (keep only in GitLab)
-    - git rm -f CLAUDE.md
+    # Remove GitLab-only files from GitHub mirror
+    - git rm -f CLAUDE.md .gitlab-ci.yml
     - git commit --amend --no-edit
     - git push github main --force
     - git push github --tags --force
