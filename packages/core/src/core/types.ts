@@ -9,14 +9,7 @@ export interface SwagentRoutes {
   openapi?: string | false;
 }
 
-export interface SwagentLandingConfig {
-  /** Show "Powered by swagent" badge in footer. Default: true */
-  showPoweredBy?: boolean;
-  /** Show AI prompt suggestion in hero. Default: true */
-  showPrompt?: boolean;
-  /** Custom prompt text. Default: 'Learn <baseUrl>' */
-  promptText?: string;
-}
+export interface SwagentLandingConfig {}
 
 export interface SwagentOptions {
   /** Base URL of the API (e.g. 'https://api.example.com') */
