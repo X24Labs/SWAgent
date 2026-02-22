@@ -65,7 +65,7 @@
         "@swagent/core": "workspace:*",
       },
       "peerDependencies": {
-        "hono": ">=4.0.0",
+        "hono": "^4.12.1",
       },
     },
   },
