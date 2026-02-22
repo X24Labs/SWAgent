@@ -1,93 +1,254 @@
-# SWAgent
+# swagent
 
+AI-first API documentation from your OpenAPI spec. Drop-in middleware for Fastify, Express, and Hono, or generate static files with the CLI.
 
+**One spec, three outputs:**
 
-## Getting started
+| Format | For | Size |
+|--------|-----|------|
+| `llms.txt` | LLM agents (token-optimized) | ~75% smaller than markdown |
+| `to-humans.md` | Developers (full markdown with ToC) | Complete reference |
+| `index.html` | Discovery (semantic HTML, zero JS) | Dark-themed landing page |
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## What llms.txt looks like
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+A typical spec compresses to something like this:
 
 ```
-cd existing_repo
-git remote add origin http://git.g24r.com/24labs/swagent.git
-git branch -M main
-git push -uf origin main
+# Acme API
+
+> Backend for Acme Corp mobile and web apps.
+
+Base: https://api.acme.io
+Docs: [HTML](https://api.acme.io/) | [OpenAPI JSON](https://api.acme.io/openapi.json)
+
+## Auth Methods
+- JWT: `Authorization: Bearer <token>` via POST /auth/login
+
+## Conventions
+- Auth: JWT = Bearer token, KEY = API Key, JWT|KEY = either, NONE = no auth
+- `*` after field name = required, all fields string unless noted with `:type`
+- Common errors: 400/401/404 return `{success:false, error}`
+
+---
+
+## Auth
+
+### POST /auth/login - Login | NONE
+Body: `{email*, password*}`
+200: `{token, expiresIn:number}`
+
+## Users
+
+### GET /users - List users | JWT
+Query: ?page:integer ?q*
+200: `[{id, name, role}]`
+
+### GET /users/{id} - Get user by ID | JWT
+Path: :id
+200: `{id, name, email}`
 ```
 
-## Integrate with your tools
+Compact notation: `*` = required, `:type` = non-string, `{...}` = object, `[...]` = array. Auth shorthands: JWT, KEY, NONE.
 
-- [ ] [Set up project integrations](http://git.g24r.com/24labs/swagent/-/settings/integrations)
+## Quick start
 
-## Collaborate with your team
+### Fastify
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+```bash
+npm install @swagent/fastify
+```
 
-## Test and Deploy
+```typescript
+import Fastify from 'fastify';
+import swagger from '@fastify/swagger';
+import { swagentFastify } from '@swagent/fastify';
 
-Use the built-in continuous integration in GitLab.
+const app = Fastify();
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+app.register(swagger, {
+  openapi: {
+    info: { title: 'My API', version: '1.0.0' },
+    servers: [{ url: 'https://api.example.com' }],
+  },
+});
 
-***
+// Define your routes with schemas as usual...
 
-# Editing this README
+app.register(swagentFastify, {
+  baseUrl: 'https://api.example.com',
+});
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+// Serves:
+//   GET /           -> HTML landing page
+//   GET /llms.txt   -> Token-optimized for LLM agents
+//   GET /to-humans.md -> Full markdown docs
+//   GET /openapi.json -> OpenAPI JSON spec
+```
 
-## Suggestions for a good README
+The Fastify adapter reads the spec from `@fastify/swagger` automatically. Content is generated once at startup.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Express
 
-## Name
-Choose a self-explaining name for your project.
+```bash
+npm install @swagent/express
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```typescript
+import express from 'express';
+import { swagentExpress } from '@swagent/express';
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+const app = express();
+const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+app.use(swagentExpress(spec, { baseUrl: 'https://api.example.com' }));
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+// Or mount on a subpath:
+app.use('/docs', swagentExpress(spec, { baseUrl: 'https://api.example.com' }));
+```
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+The Express adapter takes the OpenAPI spec as a parameter. Content is lazily cached on first request.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Hono
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```bash
+npm install @swagent/hono
+```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+```typescript
+import { Hono } from 'hono';
+import { swagentHono } from '@swagent/hono';
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+const app = new Hono();
+const spec = { /* your OpenAPI spec */ };
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+app.route('/', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+// Or on a subpath:
+app.route('/docs', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
+```
+
+### CLI
+
+```bash
+npx swagent generate ./openapi.json
+```
+
+```bash
+# Full options
+swagent generate ./openapi.json -o ./docs -b https://api.example.com -f all
+
+# From a URL
+swagent generate https://api.example.com/openapi.json
+
+# Single format
+swagent generate ./spec.json -f llms-txt
+swagent generate ./spec.json -f human
+swagent generate ./spec.json -f html
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--output-dir` | `-o` | `./docs` | Output directory |
+| `--base-url` | `-b` | from spec | Base URL for generated docs |
+| `--format` | `-f` | `all` | `llms-txt`, `human`, `html`, or `all` |
+| `--title` | `-t` | from spec | Override API title |
+| `--theme` | | `dark` | `dark` or `light` |
+
+Outputs: `llms.txt`, `to-humans.md`, `index.html`
+
+### Core (programmatic)
+
+```bash
+npm install @swagent/core
+```
+
+```typescript
+import { generate } from '@swagent/core';
+
+const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
+const output = generate(spec, { baseUrl: 'https://api.example.com' });
+
+output.llmsTxt;      // Token-optimized markdown string
+output.humanDocs;    // Full markdown string
+output.htmlLanding;  // Complete HTML string
+```
+
+## Configuration
+
+All adapters and the CLI accept the same options:
+
+```typescript
+{
+  // Base URL of the API
+  baseUrl: 'https://api.example.com',
+
+  // Override the API title from the spec
+  title: 'My API',
+
+  // Color theme for HTML landing (default: 'dark')
+  theme: 'dark' | 'light',
+
+  // Route paths (adapters only)
+  routes: {
+    landing: '/',              // or false to disable
+    llmsTxt: '/llms.txt',     // or false to disable
+    humanDocs: '/to-humans.md', // or false to disable
+    openapi: '/openapi.json',  // or false to disable
+  },
+
+  // HTML landing page config
+  landing: {
+    showPoweredBy: true,        // "Powered by swagent" footer badge
+    showPrompt: true,           // AI prompt suggestion in hero
+    promptText: 'Learn ...',    // Custom prompt text
+  },
+}
+```
+
+### Custom routes
+
+```typescript
+app.register(swagentFastify, {
+  routes: {
+    landing: '/docs',
+    llmsTxt: '/docs/llms.txt',
+    humanDocs: '/docs/humans.md',
+    openapi: '/docs/spec.json',
+  },
+});
+```
+
+### Disable specific routes
+
+```typescript
+app.use(swagentExpress(spec, {
+  routes: {
+    humanDocs: false,  // Don't serve markdown
+    openapi: false,    // Don't expose raw spec
+  },
+}));
+```
+
+## Packages
+
+| Package | Description | Peer deps |
+|---------|-------------|-----------|
+| `@swagent/core` | Generators and types | none |
+| `@swagent/fastify` | Fastify plugin | `fastify >=4` |
+| `@swagent/express` | Express middleware | `express >=4` |
+| `@swagent/hono` | Hono middleware | `hono >=4` |
+| `swagent` | CLI tool | none |
+
+## Development
+
+```bash
+bun install
+bun run build
+bun run test -- --run
+bun run typecheck
+```
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+MIT
