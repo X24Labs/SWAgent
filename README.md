@@ -3,6 +3,14 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/npm/v/@swagent/core?label=npm&color=cb3837" alt="npm version"></a>
+  <a href="https://github.com/X24Labs/SWAgent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
+  <img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/frameworks-7-green" alt="7 frameworks">
+  <img src="https://img.shields.io/badge/platform-Node%20%7C%20Bun%20%7C%20Deno-999" alt="platform">
+</p>
+
+<p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#frameworks">Frameworks</a> &middot;
   <a href="#cli">CLI</a> &middot;
@@ -306,6 +314,9 @@ swagent generate https://api.example.com/openapi.json
 swagent generate ./spec.json -f llms-txt
 swagent generate ./spec.json -f human
 swagent generate ./spec.json -f html
+
+# Watch mode: regenerate on spec changes
+swagent generate ./spec.json --watch
 ```
 
 | Flag | Short | Default | Description |
@@ -315,6 +326,7 @@ swagent generate ./spec.json -f html
 | `--format` | `-f` | `all` | `llms-txt`, `human`, `html`, or `all` |
 | `--title` | `-t` | from spec | Override API title |
 | `--theme` | | `dark` | `dark` or `light` |
+| `--watch` | `-w` | `false` | Watch spec file for changes and regenerate |
 
 Outputs: `llms.txt`, `to-humans.md`, `index.html`
 
@@ -381,6 +393,14 @@ app.use(swagentExpress(spec, {
   },
 }));
 ```
+
+## Caching
+
+Every adapter returns `ETag` and `Cache-Control: public, max-age=3600` headers on all endpoints. Clients that send `If-None-Match` with a matching ETag receive a `304 Not Modified` response with no body, saving bandwidth on repeated requests.
+
+## Error handling
+
+If the OpenAPI spec is malformed or generation fails for any reason, all adapters serve fallback content instead of crashing. Endpoints return a `200` with a "Documentation generation failed" message so your application stays up while the spec issue is resolved.
 
 ## Route map
 
