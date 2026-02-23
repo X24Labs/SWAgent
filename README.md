@@ -160,6 +160,30 @@ app.route('/', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 app.route('/docs', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 ```
 
+### Elysia
+
+```bash
+npm install @swagent/elysia
+```
+
+```typescript
+import { Elysia } from 'elysia';
+import { swagentElysia } from '@swagent/elysia';
+
+const app = new Elysia();
+const spec = { /* your OpenAPI spec */ };
+
+app.use(swagentElysia(spec, { baseUrl: 'https://api.example.com' }));
+
+// Or with a prefix:
+app.use(
+  new Elysia({ prefix: '/docs' })
+    .use(swagentElysia(spec, { baseUrl: 'https://api.example.com' }))
+);
+```
+
+Bun-native. Follows the Elysia plugin pattern with `.use()`. Content is lazily cached on first request.
+
 ### NestJS
 
 ```bash
@@ -329,6 +353,7 @@ Every adapter serves the same four routes by default:
 | [`@swagent/fastify`](packages/fastify) | Fastify plugin | `fastify >=4` |
 | [`@swagent/express`](packages/express) | Express middleware | `express >=5` |
 | [`@swagent/hono`](packages/hono) | Hono middleware | `hono >=4` |
+| [`@swagent/elysia`](packages/elysia) | Elysia plugin | `elysia >=1.4` |
 | [`@swagent/nestjs`](packages/nestjs) | NestJS module | `@nestjs/common >=10`, `@nestjs/core >=10` |
 | [`swagent`](packages/cli) | CLI tool | none |
 
