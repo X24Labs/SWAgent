@@ -204,6 +204,42 @@ describe('@swagent/express mounting on subpath', () => {
   });
 });
 
+describe('@swagent/express caching headers', () => {
+  it('includes ETag and Cache-Control headers', async () => {
+    const app = buildApp({ baseUrl: 'https://test.api.io' });
+    const res = await request(app).get('/llms.txt');
+    expect(res.status).toBe(200);
+    expect(res.headers['etag']).toBeDefined();
+    expect(res.headers['etag']).toMatch(/^"[a-z0-9]+"$/);
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+  });
+
+  it('returns consistent ETag across requests', async () => {
+    const app = buildApp({ baseUrl: 'https://test.api.io' });
+    const res1 = await request(app).get('/llms.txt');
+    const res2 = await request(app).get('/llms.txt');
+    expect(res1.headers['etag']).toBe(res2.headers['etag']);
+  });
+
+  it('returns 304 when If-None-Match matches ETag', async () => {
+    const app = buildApp({ baseUrl: 'https://test.api.io' });
+    const res1 = await request(app).get('/llms.txt');
+    const etag = res1.headers['etag'];
+    const res2 = await request(app).get('/llms.txt').set('If-None-Match', etag);
+    expect(res2.status).toBe(304);
+  });
+
+  it('sets caching headers on all endpoints', async () => {
+    const app = buildApp({ baseUrl: 'https://test.api.io' });
+
+    for (const path of ['/', '/llms.txt', '/to-humans.md', '/openapi.json']) {
+      const res = await request(app).get(path);
+      expect(res.headers['etag']).toBeDefined();
+      expect(res.headers['cache-control']).toBe('public, max-age=3600');
+    }
+  });
+});
+
 describe('@swagent/express default export', () => {
   it('can be imported as default', async () => {
     const mod = await import('../index.js');
