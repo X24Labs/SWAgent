@@ -1,7 +1,7 @@
 {
-  "name": "@swagent/express",
+  "name": "@swagent/nestjs",
   "version": "0.1.0",
-  "description": "Swagent middleware for Express. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
+  "description": "Swagent module for NestJS. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -28,20 +28,26 @@
     "api-docs",
     "ai-first",
     "documentation",
-    "express",
-    "middleware"
+    "nestjs",
+    "module"
   ],
   "license": "MIT",
   "dependencies": {
     "@swagent/core": "workspace:*"
   },
   "peerDependencies": {
-    "express": "^5.2.1"
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "@nestjs/core": "^10.0.0 || ^11.0.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@swc/core": "^1.15.11",
     "@types/supertest": "^6.0.3",
-    "express": "^5.2.1",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0",
     "supertest": "^7.2.2"
   },
   "publishConfig": {
@@ -50,7 +56,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/X24Labs/SWAgent.git",
-    "directory": "packages/express"
+    "directory": "packages/nestjs"
   },
   "homepage": "https://swagent.dev"
 }

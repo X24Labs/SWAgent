@@ -1,13 +1,10 @@
-import { Router, type Request, type Response } from 'express';
+import Router from '@koa/router';
 import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
-export interface SwagentExpressOptions extends SwagentOptions {}
+export interface SwagentKoaOptions extends SwagentOptions {}
 
-export function swagentExpress(
-  spec: OpenAPISpec,
-  options: SwagentExpressOptions = {},
-): Router {
-  const router = Router();
+export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): Router {
+  const router = new Router();
   const routes = options.routes || {};
 
   let cached: {
@@ -53,51 +50,62 @@ export function swagentExpress(
     return cached;
   }
 
-  function sendWithCache(req: Request, res: Response, content: string, contentType: string, etag: string) {
-    res.set('ETag', etag);
-    res.set('Cache-Control', 'public, max-age=3600');
-    if (req.get('If-None-Match') === etag) {
-      res.status(304).end();
-      return;
-    }
-    res.type(contentType).send(content);
-  }
-
   if (routes.landing !== false) {
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
-    router.get(landingPath, (req: Request, res: Response) => {
+    router.get('swagent-landing', landingPath, (ctx) => {
       const c = getContent();
-      sendWithCache(req, res, c.htmlLanding, 'text/html; charset=utf-8', c.etags.htmlLanding);
+      ctx.set('ETag', c.etags.htmlLanding);
+      ctx.set('Cache-Control', 'public, max-age=3600');
+      if (ctx.get('If-None-Match') === c.etags.htmlLanding) {
+        ctx.status = 304;
+        return;
+      }
+      ctx.type = 'text/html; charset=utf-8';
+      ctx.body = c.htmlLanding;
     });
   }
 
   if (routes.openapi !== false) {
     const openapiPath = typeof routes.openapi === 'string' ? routes.openapi : '/openapi.json';
-    router.get(openapiPath, (req: Request, res: Response) => {
+    router.get('swagent-openapi', openapiPath, (ctx) => {
       const c = getContent();
-      res.set('ETag', c.etags.openapi);
-      res.set('Cache-Control', 'public, max-age=3600');
-      if (req.get('If-None-Match') === c.etags.openapi) {
-        res.status(304).end();
+      ctx.set('ETag', c.etags.openapi);
+      ctx.set('Cache-Control', 'public, max-age=3600');
+      if (ctx.get('If-None-Match') === c.etags.openapi) {
+        ctx.status = 304;
         return;
       }
-      res.type('application/json; charset=utf-8').json(spec);
+      ctx.body = spec;
     });
   }
 
   if (routes.llmsTxt !== false) {
     const llmsPath = typeof routes.llmsTxt === 'string' ? routes.llmsTxt : '/llms.txt';
-    router.get(llmsPath, (req: Request, res: Response) => {
+    router.get('swagent-llms', llmsPath, (ctx) => {
       const c = getContent();
-      sendWithCache(req, res, c.llmsTxt, 'text/plain; charset=utf-8', c.etags.llmsTxt);
+      ctx.set('ETag', c.etags.llmsTxt);
+      ctx.set('Cache-Control', 'public, max-age=3600');
+      if (ctx.get('If-None-Match') === c.etags.llmsTxt) {
+        ctx.status = 304;
+        return;
+      }
+      ctx.type = 'text/plain; charset=utf-8';
+      ctx.body = c.llmsTxt;
     });
   }
 
   if (routes.humanDocs !== false) {
     const humanPath = typeof routes.humanDocs === 'string' ? routes.humanDocs : '/to-humans.md';
-    router.get(humanPath, (req: Request, res: Response) => {
+    router.get('swagent-human', humanPath, (ctx) => {
       const c = getContent();
-      sendWithCache(req, res, c.humanDocs, 'text/markdown; charset=utf-8', c.etags.humanDocs);
+      ctx.set('ETag', c.etags.humanDocs);
+      ctx.set('Cache-Control', 'public, max-age=3600');
+      if (ctx.get('If-None-Match') === c.etags.humanDocs) {
+        ctx.status = 304;
+        return;
+      }
+      ctx.type = 'text/markdown; charset=utf-8';
+      ctx.body = c.humanDocs;
     });
   }
 

@@ -1,13 +1,10 @@
-import { Router, type Request, type Response } from 'express';
+import { Elysia } from 'elysia';
 import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
-export interface SwagentExpressOptions extends SwagentOptions {}
+export interface SwagentElysiaOptions extends SwagentOptions {}
 
-export function swagentExpress(
-  spec: OpenAPISpec,
-  options: SwagentExpressOptions = {},
-): Router {
-  const router = Router();
+export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions = {}): Elysia {
+  const app = new Elysia({ name: '@swagent/elysia' });
   const routes = options.routes || {};
 
   let cached: {
@@ -53,53 +50,49 @@ export function swagentExpress(
     return cached;
   }
 
-  function sendWithCache(req: Request, res: Response, content: string, contentType: string, etag: string) {
-    res.set('ETag', etag);
-    res.set('Cache-Control', 'public, max-age=3600');
-    if (req.get('If-None-Match') === etag) {
-      res.status(304).end();
-      return;
+  function cachedResponse(content: string, contentType: string, etag: string, request: Request): Response {
+    const headers: Record<string, string> = {
+      'content-type': contentType,
+      'etag': etag,
+      'cache-control': 'public, max-age=3600',
+    };
+    if (request.headers.get('if-none-match') === etag) {
+      return new Response(null, { status: 304, headers });
     }
-    res.type(contentType).send(content);
+    return new Response(content, { headers });
   }
 
   if (routes.landing !== false) {
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
-    router.get(landingPath, (req: Request, res: Response) => {
+    app.get(landingPath, ({ request }) => {
       const c = getContent();
-      sendWithCache(req, res, c.htmlLanding, 'text/html; charset=utf-8', c.etags.htmlLanding);
+      return cachedResponse(c.htmlLanding, 'text/html; charset=utf-8', c.etags.htmlLanding, request);
     });
   }
 
   if (routes.openapi !== false) {
     const openapiPath = typeof routes.openapi === 'string' ? routes.openapi : '/openapi.json';
-    router.get(openapiPath, (req: Request, res: Response) => {
+    app.get(openapiPath, ({ request }) => {
       const c = getContent();
-      res.set('ETag', c.etags.openapi);
-      res.set('Cache-Control', 'public, max-age=3600');
-      if (req.get('If-None-Match') === c.etags.openapi) {
-        res.status(304).end();
-        return;
-      }
-      res.type('application/json; charset=utf-8').json(spec);
+      return cachedResponse(JSON.stringify(spec), 'application/json; charset=utf-8', c.etags.openapi, request);
     });
   }
 
   if (routes.llmsTxt !== false) {
     const llmsPath = typeof routes.llmsTxt === 'string' ? routes.llmsTxt : '/llms.txt';
-    router.get(llmsPath, (req: Request, res: Response) => {
+    app.get(llmsPath, ({ request }) => {
       const c = getContent();
-      sendWithCache(req, res, c.llmsTxt, 'text/plain; charset=utf-8', c.etags.llmsTxt);
+      return cachedResponse(c.llmsTxt, 'text/plain; charset=utf-8', c.etags.llmsTxt, request);
     });
   }
 
   if (routes.humanDocs !== false) {
     const humanPath = typeof routes.humanDocs === 'string' ? routes.humanDocs : '/to-humans.md';
-    router.get(humanPath, (req: Request, res: Response) => {
+    app.get(humanPath, ({ request }) => {
       const c = getContent();
-      sendWithCache(req, res, c.humanDocs, 'text/markdown; charset=utf-8', c.etags.humanDocs);
+      return cachedResponse(c.humanDocs, 'text/markdown; charset=utf-8', c.etags.humanDocs, request);
     });
   }
 
-  return router;
+  return app;
 }

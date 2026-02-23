@@ -1,7 +1,7 @@
 {
-  "name": "@swagent/express",
+  "name": "@swagent/elysia",
   "version": "0.1.0",
-  "description": "Swagent middleware for Express. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
+  "description": "Swagent plugin for Elysia. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -28,21 +28,19 @@
     "api-docs",
     "ai-first",
     "documentation",
-    "express",
-    "middleware"
+    "elysia",
+    "bun",
+    "plugin"
   ],
   "license": "MIT",
   "dependencies": {
     "@swagent/core": "workspace:*"
   },
   "peerDependencies": {
-    "express": "^5.2.1"
+    "elysia": ">= 1.4.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/supertest": "^6.0.3",
-    "express": "^5.2.1",
-    "supertest": "^7.2.2"
+    "elysia": "^1.4.0"
   },
   "publishConfig": {
     "access": "public"
@@ -50,7 +48,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/X24Labs/SWAgent.git",
-    "directory": "packages/express"
+    "directory": "packages/elysia"
   },
   "homepage": "https://swagent.dev"
 }

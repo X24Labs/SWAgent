@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execFile } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -46,13 +46,51 @@ const sampleSpec = {
   },
 };
 
+const sampleYaml = `openapi: "3.0.0"
+info:
+  title: YAML API
+  version: "1.0.0"
+  description: A YAML test API
+servers:
+  - url: https://api.yaml-test.io
+tags:
+  - name: Users
+    description: User operations
+paths:
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+`;
+
 let tmpDir: string;
 let specPath: string;
+let yamlPath: string;
+let ymlPath: string;
 
 beforeAll(async () => {
   tmpDir = await mkdtemp(join(tmpdir(), 'swagent-cli-test-'));
   specPath = join(tmpDir, 'openapi.json');
+  yamlPath = join(tmpDir, 'openapi.yaml');
+  ymlPath = join(tmpDir, 'openapi.yml');
   await writeFile(specPath, JSON.stringify(sampleSpec), 'utf-8');
+  await writeFile(yamlPath, sampleYaml, 'utf-8');
+  await writeFile(ymlPath, sampleYaml, 'utf-8');
 });
 
 afterAll(async () => {
@@ -165,5 +203,117 @@ describe('swagent CLI', () => {
 
     const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
     expect(llms).toContain('# Test CLI API');
+  });
+});
+
+describe('swagent CLI YAML support', () => {
+  it('generates docs from .yaml file', async () => {
+    const outDir = join(tmpDir, 'out-yaml');
+    const { stdout } = await exec('node', [CLI, 'generate', yamlPath, '-o', outDir]);
+
+    expect(stdout).toContain('YAML API');
+    expect(stdout).toContain('llms.txt');
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# YAML API');
+    expect(llms).toContain('List users');
+  });
+
+  it('generates docs from .yml file', async () => {
+    const outDir = join(tmpDir, 'out-yml');
+    const { stdout } = await exec('node', [CLI, 'generate', ymlPath, '-o', outDir, '-f', 'llms-txt']);
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# YAML API');
+  });
+
+  it('generates all formats from YAML', async () => {
+    const outDir = join(tmpDir, 'out-yaml-all');
+    await exec('node', [CLI, 'generate', yamlPath, '-o', outDir]);
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# YAML API');
+
+    const human = await readFile(join(outDir, 'to-humans.md'), 'utf-8');
+    expect(human).toContain('# YAML API');
+
+    const html = await readFile(join(outDir, 'index.html'), 'utf-8');
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('YAML API');
+  });
+
+  it('respects --title flag with YAML input', async () => {
+    const outDir = join(tmpDir, 'out-yaml-title');
+    await exec('node', [CLI, 'generate', yamlPath, '-o', outDir, '-t', 'Custom YAML Title', '-f', 'llms-txt']);
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# Custom YAML Title');
+  });
+});
+
+describe('swagent CLI --watch mode', () => {
+  it('shows --watch in help', async () => {
+    const { stdout } = await exec('node', [CLI, '--help']);
+    expect(stdout).toContain('--watch');
+    expect(stdout).toContain('Watch spec file');
+  });
+
+  it('regenerates docs when spec file changes', async () => {
+    const outDir = join(tmpDir, 'out-watch');
+    const watchSpec = join(tmpDir, 'watch-spec.json');
+    await writeFile(watchSpec, JSON.stringify(sampleSpec), 'utf-8');
+
+    const child: ChildProcess = spawn('node', [CLI, 'generate', watchSpec, '-o', outDir, '-w', '-f', 'llms-txt']);
+
+    let output = '';
+    child.stdout?.on('data', (data: Buffer) => {
+      output += data.toString();
+    });
+    child.stderr?.on('data', (data: Buffer) => {
+      output += data.toString();
+    });
+
+    // Wait for initial generation
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (output.includes('Watching')) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+    });
+
+    // Verify initial generation
+    const llmsInitial = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llmsInitial).toContain('# Test CLI API');
+
+    // Modify the spec file
+    const updatedSpec = { ...sampleSpec, info: { ...sampleSpec.info, title: 'Updated Watch API' } };
+    await writeFile(watchSpec, JSON.stringify(updatedSpec), 'utf-8');
+
+    // Wait for regeneration (debounce 300ms + generation time)
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (output.includes('Change detected') && output.includes('Done.')) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+    });
+
+    // Verify regenerated docs have updated content
+    const llmsUpdated = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llmsUpdated).toContain('# Updated Watch API');
+
+    child.kill();
+  }, 10000);
+
+  it('shows error for --watch with URL spec', async () => {
+    try {
+      await exec('node', [CLI, 'generate', 'https://example.com/spec.json', '-w']);
+      expect.unreachable('Should have thrown');
+    } catch (err: any) {
+      expect(err.stderr).toContain('--watch is not supported with URL specs');
+    }
   });
 });

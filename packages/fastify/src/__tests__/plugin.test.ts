@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import { swagentFastify } from '../plugin.js';
@@ -195,10 +195,84 @@ describe('@swagent/fastify route configuration', () => {
   });
 });
 
+describe('@swagent/fastify caching headers', () => {
+  let app: ReturnType<typeof Fastify>;
+
+  beforeAll(async () => {
+    app = buildApp({ baseUrl: 'https://test.api.io' });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('includes ETag and Cache-Control headers', async () => {
+    const res = await app.inject({ method: 'GET', url: '/llms.txt' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['etag']).toBeDefined();
+    expect(res.headers['etag']).toMatch(/^"[a-z0-9]+"$/);
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+  });
+
+  it('returns consistent ETag across requests', async () => {
+    const res1 = await app.inject({ method: 'GET', url: '/llms.txt' });
+    const res2 = await app.inject({ method: 'GET', url: '/llms.txt' });
+    expect(res1.headers['etag']).toBe(res2.headers['etag']);
+  });
+
+  it('returns 304 when If-None-Match matches ETag', async () => {
+    const res1 = await app.inject({ method: 'GET', url: '/llms.txt' });
+    const etag = res1.headers['etag'] as string;
+    const res2 = await app.inject({
+      method: 'GET',
+      url: '/llms.txt',
+      headers: { 'if-none-match': etag },
+    });
+    expect(res2.statusCode).toBe(304);
+  });
+
+  it('sets caching headers on all endpoints', async () => {
+    for (const url of ['/', '/llms.txt', '/to-humans.md', '/openapi.json']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.headers['etag']).toBeDefined();
+      expect(res.headers['cache-control']).toBe('public, max-age=3600');
+    }
+  });
+});
+
 describe('@swagent/fastify default export', () => {
   it('can be imported as default', async () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/fastify error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    const app = Fastify({ logger: false });
+
+    // Mock swagger() to return a spec that causes generate() to throw
+    const brokenSpec = {} as any;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+    (app as any).swagger = () => brokenSpec;
+
+    app.register(swagentFastify);
+    await app.ready();
+
+    const landing = await app.inject({ method: 'GET', url: '/' });
+    expect(landing.statusCode).toBe(200);
+    expect(landing.body).toContain('Documentation generation failed');
+
+    const llms = await app.inject({ method: 'GET', url: '/llms.txt' });
+    expect(llms.statusCode).toBe(200);
+    expect(llms.body).toContain('Documentation generation failed');
+
+    const human = await app.inject({ method: 'GET', url: '/to-humans.md' });
+    expect(human.statusCode).toBe(200);
+    expect(human.body).toContain('Documentation generation failed');
+
+    await app.close();
   });
 });

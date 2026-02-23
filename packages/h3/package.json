@@ -1,7 +1,7 @@
 {
-  "name": "@swagent/express",
+  "name": "@swagent/h3",
   "version": "0.1.0",
-  "description": "Swagent middleware for Express. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
+  "description": "Swagent middleware for h3 (Nitro/Nuxt). Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -28,7 +28,9 @@
     "api-docs",
     "ai-first",
     "documentation",
-    "express",
+    "h3",
+    "nitro",
+    "nuxt",
     "middleware"
   ],
   "license": "MIT",
@@ -36,12 +38,11 @@
     "@swagent/core": "workspace:*"
   },
   "peerDependencies": {
-    "express": "^5.2.1"
+    "h3": "^1.13.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
     "@types/supertest": "^6.0.3",
-    "express": "^5.2.1",
+    "h3": "^1.13.0",
     "supertest": "^7.2.2"
   },
   "publishConfig": {
@@ -50,7 +51,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/X24Labs/SWAgent.git",
-    "directory": "packages/express"
+    "directory": "packages/h3"
   },
   "homepage": "https://swagent.dev"
 }

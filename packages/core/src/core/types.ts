@@ -51,6 +51,8 @@ export interface SchemaObject {
   items?: SchemaObject;
   example?: unknown;
   description?: string;
+  oneOf?: SchemaObject[];
+  anyOf?: SchemaObject[];
   [key: string]: unknown;
 }
 

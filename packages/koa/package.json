@@ -1,7 +1,7 @@
 {
-  "name": "@swagent/express",
+  "name": "@swagent/koa",
   "version": "0.1.0",
-  "description": "Swagent middleware for Express. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
+  "description": "Swagent middleware for Koa. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -28,7 +28,7 @@
     "api-docs",
     "ai-first",
     "documentation",
-    "express",
+    "koa",
     "middleware"
   ],
   "license": "MIT",
@@ -36,12 +36,15 @@
     "@swagent/core": "workspace:*"
   },
   "peerDependencies": {
-    "express": "^5.2.1"
+    "koa": ">= 2.0.0",
+    "@koa/router": ">= 12.0.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
+    "@koa/router": "^12.0.0",
+    "@types/koa": "^3.0.1",
+    "@types/koa__router": "^12.0.4",
     "@types/supertest": "^6.0.3",
-    "express": "^5.2.1",
+    "koa": "^2.0.0",
     "supertest": "^7.2.2"
   },
   "publishConfig": {
@@ -50,7 +53,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/X24Labs/SWAgent.git",
-    "directory": "packages/express"
+    "directory": "packages/koa"
   },
   "homepage": "https://swagent.dev"
 }

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import express from 'express';
+import Koa from 'koa';
+import Router from '@koa/router';
 import request from 'supertest';
-import { swagentExpress } from '../middleware.js';
+import { swagentKoa } from '../middleware.js';
 import type { OpenAPISpec } from '@swagent/core';
 
 const testSpec: OpenAPISpec = {
@@ -18,9 +19,7 @@ const testSpec: OpenAPISpec = {
       get: {
         tags: ['Items'],
         summary: 'List items',
-        parameters: [
-          { name: 'page', in: 'query', schema: { type: 'integer' } },
-        ],
+        parameters: [{ name: 'page', in: 'query', schema: { type: 'integer' } }],
         responses: {
           '200': {
             description: 'OK',
@@ -67,15 +66,17 @@ const testSpec: OpenAPISpec = {
 };
 
 function buildApp(swagentOpts = {}) {
-  const app = express();
-  app.use(swagentExpress(testSpec, swagentOpts));
+  const app = new Koa();
+  const router = swagentKoa(testSpec, swagentOpts);
+  app.use(router.routes());
+  app.use(router.allowedMethods());
   return app;
 }
 
-describe('@swagent/express middleware', () => {
+describe('@swagent/koa middleware', () => {
   it('serves HTML landing at /', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/');
+    const res = await request(app.callback()).get('/');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
     expect(res.text).toContain('<!DOCTYPE html>');
@@ -84,7 +85,7 @@ describe('@swagent/express middleware', () => {
 
   it('serves llms.txt at /llms.txt', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/llms.txt');
+    const res = await request(app.callback()).get('/llms.txt');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/plain');
     expect(res.text).toContain('# Test API');
@@ -93,7 +94,7 @@ describe('@swagent/express middleware', () => {
 
   it('serves human docs at /to-humans.md', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/to-humans.md');
+    const res = await request(app.callback()).get('/to-humans.md');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/markdown');
     expect(res.text).toContain('# Test API');
@@ -102,7 +103,7 @@ describe('@swagent/express middleware', () => {
 
   it('serves openapi.json at /openapi.json', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/openapi.json');
+    const res = await request(app.callback()).get('/openapi.json');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/json');
     expect(res.body.info.title).toBe('Test API');
@@ -110,7 +111,7 @@ describe('@swagent/express middleware', () => {
 
   it('llms.txt contains spec metadata', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/llms.txt');
+    const res = await request(app.callback()).get('/llms.txt');
     expect(res.text).toContain('# Test API');
     expect(res.text).toContain('Base: https://test.api.io');
     expect(res.text).toContain('## Conventions');
@@ -118,14 +119,14 @@ describe('@swagent/express middleware', () => {
 
   it('llms.txt uses compact auth notation', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/llms.txt');
+    const res = await request(app.callback()).get('/llms.txt');
     expect(res.text).toContain('JWT');
     expect(res.text).toContain('NONE');
   });
 
   it('HTML landing includes API title and structure', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/');
+    const res = await request(app.callback()).get('/');
     expect(res.text).toContain('Test API');
     expect(res.text).toContain('AI-First API Documentation');
     expect(res.text).toContain('Available formats');
@@ -133,13 +134,14 @@ describe('@swagent/express middleware', () => {
 
   it('content is cached (same content on repeated requests)', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res1 = await request(app).get('/llms.txt');
-    const res2 = await request(app).get('/llms.txt');
+    const cb = app.callback();
+    const res1 = await request(cb).get('/llms.txt');
+    const res2 = await request(cb).get('/llms.txt');
     expect(res1.text).toBe(res2.text);
   });
 });
 
-describe('@swagent/express route configuration', () => {
+describe('@swagent/koa route configuration', () => {
   it('respects custom route paths', async () => {
     const app = buildApp({
       routes: {
@@ -149,18 +151,12 @@ describe('@swagent/express route configuration', () => {
         openapi: '/docs/openapi.json',
       },
     });
+    const cb = app.callback();
 
-    const llms = await request(app).get('/docs/llms.txt');
-    expect(llms.status).toBe(200);
-
-    const human = await request(app).get('/docs/humans.md');
-    expect(human.status).toBe(200);
-
-    const landing = await request(app).get('/docs');
-    expect(landing.status).toBe(200);
-
-    const openapi = await request(app).get('/docs/openapi.json');
-    expect(openapi.status).toBe(200);
+    expect((await request(cb).get('/docs/llms.txt')).status).toBe(200);
+    expect((await request(cb).get('/docs/humans.md')).status).toBe(200);
+    expect((await request(cb).get('/docs')).status).toBe(200);
+    expect((await request(cb).get('/docs/openapi.json')).status).toBe(200);
   });
 
   it('disables routes set to false', async () => {
@@ -170,44 +166,48 @@ describe('@swagent/express route configuration', () => {
         humanDocs: false,
       },
     });
+    const cb = app.callback();
 
-    const llms = await request(app).get('/llms.txt');
-    expect(llms.status).toBe(404);
-
-    const human = await request(app).get('/to-humans.md');
-    expect(human.status).toBe(404);
+    expect((await request(cb).get('/llms.txt')).status).toBe(404);
+    expect((await request(cb).get('/to-humans.md')).status).toBe(404);
 
     // Landing and openapi still work
-    const landing = await request(app).get('/');
-    expect(landing.status).toBe(200);
+    expect((await request(cb).get('/')).status).toBe(200);
   });
 
   it('respects custom title option', async () => {
     const app = buildApp({ title: 'My Custom API' });
-    const res = await request(app).get('/llms.txt');
+    const res = await request(app.callback()).get('/llms.txt');
     expect(res.text).toContain('# My Custom API');
   });
 });
 
-describe('@swagent/express mounting on subpath', () => {
-  it('works when mounted on a subpath', async () => {
-    const app = express();
-    app.use('/docs', swagentExpress(testSpec, { baseUrl: 'https://test.api.io' }));
+describe('@swagent/koa mounting on subpath', () => {
+  it('works when mounted with prefix on parent router', async () => {
+    const app = new Koa();
+    const parentRouter = new Router();
+    const swagent = swagentKoa(testSpec, { baseUrl: 'https://test.api.io' });
 
-    const llms = await request(app).get('/docs/llms.txt');
+    parentRouter.use('/docs', swagent.routes(), swagent.allowedMethods());
+    app.use(parentRouter.routes());
+    app.use(parentRouter.allowedMethods());
+
+    const cb = app.callback();
+
+    const llms = await request(cb).get('/docs/llms.txt');
     expect(llms.status).toBe(200);
     expect(llms.text).toContain('# Test API');
 
-    const landing = await request(app).get('/docs/');
+    const landing = await request(cb).get('/docs');
     expect(landing.status).toBe(200);
     expect(landing.text).toContain('<!DOCTYPE html>');
   });
 });
 
-describe('@swagent/express caching headers', () => {
+describe('@swagent/koa caching headers', () => {
   it('includes ETag and Cache-Control headers', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res = await request(app).get('/llms.txt');
+    const res = await request(app.callback()).get('/llms.txt');
     expect(res.status).toBe(200);
     expect(res.headers['etag']).toBeDefined();
     expect(res.headers['etag']).toMatch(/^"[a-z0-9]+"$/);
@@ -216,31 +216,34 @@ describe('@swagent/express caching headers', () => {
 
   it('returns consistent ETag across requests', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res1 = await request(app).get('/llms.txt');
-    const res2 = await request(app).get('/llms.txt');
+    const cb = app.callback();
+    const res1 = await request(cb).get('/llms.txt');
+    const res2 = await request(cb).get('/llms.txt');
     expect(res1.headers['etag']).toBe(res2.headers['etag']);
   });
 
   it('returns 304 when If-None-Match matches ETag', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
-    const res1 = await request(app).get('/llms.txt');
+    const cb = app.callback();
+    const res1 = await request(cb).get('/llms.txt');
     const etag = res1.headers['etag'];
-    const res2 = await request(app).get('/llms.txt').set('If-None-Match', etag);
+    const res2 = await request(cb).get('/llms.txt').set('If-None-Match', etag);
     expect(res2.status).toBe(304);
   });
 
   it('sets caching headers on all endpoints', async () => {
     const app = buildApp({ baseUrl: 'https://test.api.io' });
+    const cb = app.callback();
 
     for (const path of ['/', '/llms.txt', '/to-humans.md', '/openapi.json']) {
-      const res = await request(app).get(path);
+      const res = await request(cb).get(path);
       expect(res.headers['etag']).toBeDefined();
       expect(res.headers['cache-control']).toBe('public, max-age=3600');
     }
   });
 });
 
-describe('@swagent/express default export', () => {
+describe('@swagent/koa default export', () => {
   it('can be imported as default', async () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
@@ -248,25 +251,27 @@ describe('@swagent/express default export', () => {
   });
 });
 
-describe('@swagent/express error handling', () => {
+describe('@swagent/koa error handling', () => {
   it('serves fallback content when generation fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const brokenSpec = {} as OpenAPISpec;
     Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
 
-    const app = express();
-    app.use(swagentExpress(brokenSpec));
+    const app = new Koa();
+    const router = swagentKoa(brokenSpec);
+    app.use(router.routes());
+    app.use(router.allowedMethods());
 
-    const landing = await request(app).get('/');
+    const landing = await request(app.callback()).get('/');
     expect(landing.status).toBe(200);
     expect(landing.text).toContain('Documentation generation failed');
 
-    const llms = await request(app).get('/llms.txt');
+    const llms = await request(app.callback()).get('/llms.txt');
     expect(llms.status).toBe(200);
     expect(llms.text).toContain('Documentation generation failed');
 
-    const human = await request(app).get('/to-humans.md');
+    const human = await request(app.callback()).get('/to-humans.md');
     expect(human.status).toBe(200);
     expect(human.text).toContain('Documentation generation failed');
 

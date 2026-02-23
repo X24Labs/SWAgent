@@ -3,6 +3,14 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/npm/v/@swagent/core?label=npm&color=cb3837" alt="npm version"></a>
+  <a href="https://github.com/X24Labs/SWAgent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
+  <img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/frameworks-7-green" alt="7 frameworks">
+  <img src="https://img.shields.io/badge/platform-Node%20%7C%20Bun%20%7C%20Deno-999" alt="platform">
+</p>
+
+<p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#frameworks">Frameworks</a> &middot;
   <a href="#cli">CLI</a> &middot;
@@ -160,6 +168,118 @@ app.route('/', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 app.route('/docs', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 ```
 
+### Elysia
+
+```bash
+npm install @swagent/elysia
+```
+
+```typescript
+import { Elysia } from 'elysia';
+import { swagentElysia } from '@swagent/elysia';
+
+const app = new Elysia();
+const spec = { /* your OpenAPI spec */ };
+
+app.use(swagentElysia(spec, { baseUrl: 'https://api.example.com' }));
+
+// Or with a prefix:
+app.use(
+  new Elysia({ prefix: '/docs' })
+    .use(swagentElysia(spec, { baseUrl: 'https://api.example.com' }))
+);
+```
+
+Bun-native. Follows the Elysia plugin pattern with `.use()`. Content is lazily cached on first request.
+
+### Koa
+
+```bash
+npm install @swagent/koa
+```
+
+```typescript
+import Koa from 'koa';
+import { swagentKoa } from '@swagent/koa';
+
+const app = new Koa();
+const spec = { /* your OpenAPI spec */ };
+const swagent = swagentKoa(spec, { baseUrl: 'https://api.example.com' });
+
+app.use(swagent.routes());
+app.use(swagent.allowedMethods());
+
+// Or mount on a subpath with @koa/router:
+const Router = require('@koa/router');
+const parent = new Router();
+parent.use('/docs', swagent.routes(), swagent.allowedMethods());
+app.use(parent.routes());
+```
+
+Returns a `@koa/router` Router instance. Content is lazily cached on first request.
+
+### h3 (Nitro / Nuxt)
+
+```bash
+npm install @swagent/h3
+```
+
+```typescript
+import { createApp } from 'h3';
+import { swagentH3 } from '@swagent/h3';
+
+const app = createApp();
+const spec = { /* your OpenAPI spec */ };
+
+app.use(swagentH3(spec, { baseUrl: 'https://api.example.com' }));
+
+// Or in a Nitro server middleware (server/middleware/swagent.ts):
+import { useBase } from 'h3';
+export default useBase('/docs', swagentH3(spec).handler);
+```
+
+Returns an h3 Router. Compatible with h3, Nitro, and Nuxt server routes. Content is lazily cached on first request.
+
+### NestJS
+
+```bash
+npm install @swagent/nestjs
+```
+
+**Option 1: Module pattern** (DI-based, NestJS-idiomatic)
+
+```typescript
+import { SwagentModule } from '@swagent/nestjs';
+
+@Module({
+  imports: [
+    SwagentModule.register({
+      spec: openApiDocument,
+      baseUrl: 'https://api.example.com',
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+**Option 2: Setup pattern** (mirrors `SwaggerModule.setup()`)
+
+```typescript
+import { SwagentModule } from '@swagent/nestjs';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+
+const config = new DocumentBuilder()
+  .setTitle('My API')
+  .setVersion('1.0')
+  .build();
+const document = SwaggerModule.createDocument(app, config);
+
+SwaggerModule.setup('api', app, document);
+SwagentModule.setup(app, document, { path: '/docs' });
+```
+
+The module pattern uses NestJS DI with lazy caching. The setup pattern registers routes directly on the HTTP adapter with full route customization.
+
 ### Core (programmatic)
 
 ```bash
@@ -194,6 +314,9 @@ swagent generate https://api.example.com/openapi.json
 swagent generate ./spec.json -f llms-txt
 swagent generate ./spec.json -f human
 swagent generate ./spec.json -f html
+
+# Watch mode: regenerate on spec changes
+swagent generate ./spec.json --watch
 ```
 
 | Flag | Short | Default | Description |
@@ -203,6 +326,7 @@ swagent generate ./spec.json -f html
 | `--format` | `-f` | `all` | `llms-txt`, `human`, `html`, or `all` |
 | `--title` | `-t` | from spec | Override API title |
 | `--theme` | | `dark` | `dark` or `light` |
+| `--watch` | `-w` | `false` | Watch spec file for changes and regenerate |
 
 Outputs: `llms.txt`, `to-humans.md`, `index.html`
 
@@ -270,6 +394,14 @@ app.use(swagentExpress(spec, {
 }));
 ```
 
+## Caching
+
+Every adapter returns `ETag` and `Cache-Control: public, max-age=3600` headers on all endpoints. Clients that send `If-None-Match` with a matching ETag receive a `304 Not Modified` response with no body, saving bandwidth on repeated requests.
+
+## Error handling
+
+If the OpenAPI spec is malformed or generation fails for any reason, all adapters serve fallback content instead of crashing. Endpoints return a `200` with a "Documentation generation failed" message so your application stays up while the spec issue is resolved.
+
 ## Route map
 
 Every adapter serves the same four routes by default:
@@ -289,6 +421,10 @@ Every adapter serves the same four routes by default:
 | [`@swagent/fastify`](packages/fastify) | Fastify plugin | `fastify >=4` |
 | [`@swagent/express`](packages/express) | Express middleware | `express >=5` |
 | [`@swagent/hono`](packages/hono) | Hono middleware | `hono >=4` |
+| [`@swagent/elysia`](packages/elysia) | Elysia plugin | `elysia >=1.4` |
+| [`@swagent/koa`](packages/koa) | Koa middleware | `koa >=2`, `@koa/router >=12` |
+| [`@swagent/h3`](packages/h3) | h3 middleware | `h3 ^1.13` |
+| [`@swagent/nestjs`](packages/nestjs) | NestJS module | `@nestjs/common >=10`, `@nestjs/core >=10` |
 | [`swagent`](packages/cli) | CLI tool | none |
 
 ## Development
@@ -305,7 +441,7 @@ bun run typecheck
 1. Fork the repo
 2. Create your branch (`git checkout -b feature/thing`)
 3. Write tests for new functionality
-4. Make sure all 116 tests pass (`bun run test -- --run`)
+4. Make sure all tests pass (`bun run test -- --run`)
 5. Submit a PR
 
 ## License
