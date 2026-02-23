@@ -5,11 +5,14 @@ import {
   Injectable,
   Get,
   Header,
+  Headers,
   Inject,
+  Res,
   type DynamicModule,
 } from '@nestjs/common';
 import {
   generate,
+  computeEtag,
   type SwagentOptions,
   type SwagentOutput,
   type OpenAPISpec,
@@ -27,15 +30,24 @@ export interface SwagentSetupOptions extends SwagentOptions {
 
 @Injectable()
 export class SwagentService {
-  private cached: SwagentOutput | null = null;
+  private cached: (SwagentOutput & { etags: { llmsTxt: string; humanDocs: string; htmlLanding: string; openapi: string } }) | null = null;
 
   constructor(
     @Inject(SWAGENT_OPTIONS) private readonly options: SwagentNestOptions,
   ) {}
 
-  getContent(): SwagentOutput {
+  getContent(): SwagentOutput & { etags: { llmsTxt: string; humanDocs: string; htmlLanding: string; openapi: string } } {
     if (!this.cached) {
-      this.cached = generate(this.options.spec, this.options);
+      const output = generate(this.options.spec, this.options);
+      this.cached = {
+        ...output,
+        etags: {
+          llmsTxt: computeEtag(output.llmsTxt),
+          humanDocs: computeEtag(output.humanDocs),
+          htmlLanding: computeEtag(output.htmlLanding),
+          openapi: computeEtag(JSON.stringify(this.options.spec)),
+        },
+      };
     }
     return this.cached;
   }
@@ -53,26 +65,54 @@ class SwagentController {
 
   @Get()
   @Header('Content-Type', 'text/html; charset=utf-8')
-  landing(): string {
-    return this.swagent.getContent().htmlLanding;
+  @Header('Cache-Control', 'public, max-age=3600')
+  landing(@Headers('if-none-match') inm: string, @Res() res: any): void {
+    const c = this.swagent.getContent();
+    res.set('ETag', c.etags.htmlLanding);
+    if (inm === c.etags.htmlLanding) {
+      res.status(304).end();
+      return;
+    }
+    res.send(c.htmlLanding);
   }
 
   @Get('llms.txt')
   @Header('Content-Type', 'text/plain; charset=utf-8')
-  llmsTxt(): string {
-    return this.swagent.getContent().llmsTxt;
+  @Header('Cache-Control', 'public, max-age=3600')
+  llmsTxt(@Headers('if-none-match') inm: string, @Res() res: any): void {
+    const c = this.swagent.getContent();
+    res.set('ETag', c.etags.llmsTxt);
+    if (inm === c.etags.llmsTxt) {
+      res.status(304).end();
+      return;
+    }
+    res.send(c.llmsTxt);
   }
 
   @Get('to-humans.md')
   @Header('Content-Type', 'text/markdown; charset=utf-8')
-  humanDocs(): string {
-    return this.swagent.getContent().humanDocs;
+  @Header('Cache-Control', 'public, max-age=3600')
+  humanDocs(@Headers('if-none-match') inm: string, @Res() res: any): void {
+    const c = this.swagent.getContent();
+    res.set('ETag', c.etags.humanDocs);
+    if (inm === c.etags.humanDocs) {
+      res.status(304).end();
+      return;
+    }
+    res.send(c.humanDocs);
   }
 
   @Get('openapi.json')
   @Header('Content-Type', 'application/json; charset=utf-8')
-  openapi(): OpenAPISpec {
-    return this.swagent.getSpec();
+  @Header('Cache-Control', 'public, max-age=3600')
+  openapi(@Headers('if-none-match') inm: string, @Res() res: any): void {
+    const c = this.swagent.getContent();
+    res.set('ETag', c.etags.openapi);
+    if (inm === c.etags.openapi) {
+      res.status(304).end();
+      return;
+    }
+    res.json(this.swagent.getSpec());
   }
 }
 
@@ -153,8 +193,21 @@ export class SwagentModule {
     const prefix = (options.path || '').replace(/\/$/, '');
     const httpAdapter = app.getHttpAdapter();
 
-    const serve = (path: string, contentType: string, body: string) => {
-      httpAdapter.get(path, (_req: any, res: any) => {
+    const etags = {
+      llmsTxt: computeEtag(output.llmsTxt),
+      humanDocs: computeEtag(output.humanDocs),
+      htmlLanding: computeEtag(output.htmlLanding),
+      openapi: computeEtag(JSON.stringify(spec)),
+    };
+
+    const serve = (path: string, contentType: string, body: string, etag: string) => {
+      httpAdapter.get(path, (req: any, res: any) => {
+        res.set('ETag', etag);
+        res.set('Cache-Control', 'public, max-age=3600');
+        if (req.get('If-None-Match') === etag) {
+          res.status(304).end();
+          return;
+        }
         res.type(contentType).send(body);
       });
     };
@@ -164,7 +217,7 @@ export class SwagentModule {
         typeof routes.landing === 'string'
           ? routes.landing
           : prefix || '/';
-      serve(p, 'text/html; charset=utf-8', output.htmlLanding);
+      serve(p, 'text/html; charset=utf-8', output.htmlLanding, etags.htmlLanding);
     }
 
     if (routes.llmsTxt !== false) {
@@ -172,7 +225,7 @@ export class SwagentModule {
         typeof routes.llmsTxt === 'string'
           ? routes.llmsTxt
           : `${prefix}/llms.txt`;
-      serve(p, 'text/plain; charset=utf-8', output.llmsTxt);
+      serve(p, 'text/plain; charset=utf-8', output.llmsTxt, etags.llmsTxt);
     }
 
     if (routes.humanDocs !== false) {
@@ -180,7 +233,7 @@ export class SwagentModule {
         typeof routes.humanDocs === 'string'
           ? routes.humanDocs
           : `${prefix}/to-humans.md`;
-      serve(p, 'text/markdown; charset=utf-8', output.humanDocs);
+      serve(p, 'text/markdown; charset=utf-8', output.humanDocs, etags.humanDocs);
     }
 
     if (routes.openapi !== false) {
@@ -188,7 +241,7 @@ export class SwagentModule {
         typeof routes.openapi === 'string'
           ? routes.openapi
           : `${prefix}/openapi.json`;
-      serve(p, 'application/json; charset=utf-8', JSON.stringify(spec));
+      serve(p, 'application/json; charset=utf-8', JSON.stringify(spec), etags.openapi);
     }
   }
 }

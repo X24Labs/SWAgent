@@ -253,6 +253,93 @@ describe('@swagent/nestjs setup() route disabling', () => {
   });
 });
 
+describe('@swagent/nestjs register() caching headers', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        SwagentModule.register({
+          spec: testSpec,
+          baseUrl: 'https://test.api.io',
+        }),
+      ],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('includes ETag and Cache-Control headers', async () => {
+    const res = await request(app.getHttpServer()).get('/llms.txt');
+    expect(res.status).toBe(200);
+    expect(res.headers['etag']).toBeDefined();
+    expect(res.headers['etag']).toMatch(/^"[a-z0-9]+"$/);
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+  });
+
+  it('returns consistent ETag across requests', async () => {
+    const res1 = await request(app.getHttpServer()).get('/llms.txt');
+    const res2 = await request(app.getHttpServer()).get('/llms.txt');
+    expect(res1.headers['etag']).toBe(res2.headers['etag']);
+  });
+
+  it('returns 304 when If-None-Match matches ETag', async () => {
+    const res1 = await request(app.getHttpServer()).get('/llms.txt');
+    const etag = res1.headers['etag'];
+    const res2 = await request(app.getHttpServer())
+      .get('/llms.txt')
+      .set('If-None-Match', etag);
+    expect(res2.status).toBe(304);
+  });
+
+  it('sets caching headers on all endpoints', async () => {
+    for (const path of ['/', '/llms.txt', '/to-humans.md', '/openapi.json']) {
+      const res = await request(app.getHttpServer()).get(path);
+      expect(res.headers['etag']).toBeDefined();
+      expect(res.headers['cache-control']).toBe('public, max-age=3600');
+    }
+  });
+});
+
+describe('@swagent/nestjs setup() caching headers', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({}).compile();
+    app = moduleRef.createNestApplication();
+    SwagentModule.setup(app, testSpec, {
+      path: '/docs',
+      baseUrl: 'https://test.api.io',
+    });
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('includes ETag and Cache-Control headers on setup routes', async () => {
+    const res = await request(app.getHttpServer()).get('/docs/llms.txt');
+    expect(res.status).toBe(200);
+    expect(res.headers['etag']).toBeDefined();
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+  });
+
+  it('returns 304 when If-None-Match matches ETag on setup routes', async () => {
+    const res1 = await request(app.getHttpServer()).get('/docs/llms.txt');
+    const etag = res1.headers['etag'];
+    const res2 = await request(app.getHttpServer())
+      .get('/docs/llms.txt')
+      .set('If-None-Match', etag);
+    expect(res2.status).toBe(304);
+  });
+});
+
 describe('@swagent/nestjs default export', () => {
   it('can be imported as default', async () => {
     const mod = await import('../index.js');

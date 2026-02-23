@@ -195,6 +195,52 @@ describe('@swagent/fastify route configuration', () => {
   });
 });
 
+describe('@swagent/fastify caching headers', () => {
+  let app: ReturnType<typeof Fastify>;
+
+  beforeAll(async () => {
+    app = buildApp({ baseUrl: 'https://test.api.io' });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('includes ETag and Cache-Control headers', async () => {
+    const res = await app.inject({ method: 'GET', url: '/llms.txt' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['etag']).toBeDefined();
+    expect(res.headers['etag']).toMatch(/^"[a-z0-9]+"$/);
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+  });
+
+  it('returns consistent ETag across requests', async () => {
+    const res1 = await app.inject({ method: 'GET', url: '/llms.txt' });
+    const res2 = await app.inject({ method: 'GET', url: '/llms.txt' });
+    expect(res1.headers['etag']).toBe(res2.headers['etag']);
+  });
+
+  it('returns 304 when If-None-Match matches ETag', async () => {
+    const res1 = await app.inject({ method: 'GET', url: '/llms.txt' });
+    const etag = res1.headers['etag'] as string;
+    const res2 = await app.inject({
+      method: 'GET',
+      url: '/llms.txt',
+      headers: { 'if-none-match': etag },
+    });
+    expect(res2.statusCode).toBe(304);
+  });
+
+  it('sets caching headers on all endpoints', async () => {
+    for (const url of ['/', '/llms.txt', '/to-humans.md', '/openapi.json']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.headers['etag']).toBeDefined();
+      expect(res.headers['cache-control']).toBe('public, max-age=3600');
+    }
+  });
+});
+
 describe('@swagent/fastify default export', () => {
   it('can be imported as default', async () => {
     const mod = await import('../index.js');

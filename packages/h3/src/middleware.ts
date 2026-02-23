@@ -1,6 +1,6 @@
-import { createRouter, defineEventHandler, setResponseHeader } from 'h3';
+import { createRouter, defineEventHandler, setResponseHeader, getRequestHeader } from 'h3';
 import type { Router } from 'h3';
-import { generate, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentH3Options extends SwagentOptions {}
 
@@ -8,7 +8,12 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
   const router = createRouter();
   const routes = options.routes || {};
 
-  let cached: { llmsTxt: string; humanDocs: string; htmlLanding: string } | null = null;
+  let cached: {
+    llmsTxt: string;
+    humanDocs: string;
+    htmlLanding: string;
+    etags: { llmsTxt: string; humanDocs: string; htmlLanding: string; openapi: string };
+  } | null = null;
 
   function getContent() {
     if (!cached) {
@@ -17,6 +22,12 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
         llmsTxt: output.llmsTxt,
         humanDocs: output.humanDocs,
         htmlLanding: output.htmlLanding,
+        etags: {
+          llmsTxt: computeEtag(output.llmsTxt),
+          humanDocs: computeEtag(output.humanDocs),
+          htmlLanding: computeEtag(output.htmlLanding),
+          openapi: computeEtag(JSON.stringify(spec)),
+        },
       };
     }
     return cached;
@@ -27,8 +38,15 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     router.get(
       landingPath,
       defineEventHandler((event) => {
+        const c = getContent();
         setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
-        return getContent().htmlLanding;
+        setResponseHeader(event, 'etag', c.etags.htmlLanding);
+        setResponseHeader(event, 'cache-control', 'public, max-age=3600');
+        if (getRequestHeader(event, 'if-none-match') === c.etags.htmlLanding) {
+          event.node.res.statusCode = 304;
+          return '';
+        }
+        return c.htmlLanding;
       }),
     );
   }
@@ -37,7 +55,16 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     const openapiPath = typeof routes.openapi === 'string' ? routes.openapi : '/openapi.json';
     router.get(
       openapiPath,
-      defineEventHandler(() => spec),
+      defineEventHandler((event) => {
+        const c = getContent();
+        setResponseHeader(event, 'etag', c.etags.openapi);
+        setResponseHeader(event, 'cache-control', 'public, max-age=3600');
+        if (getRequestHeader(event, 'if-none-match') === c.etags.openapi) {
+          event.node.res.statusCode = 304;
+          return '';
+        }
+        return spec;
+      }),
     );
   }
 
@@ -46,8 +73,15 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     router.get(
       llmsPath,
       defineEventHandler((event) => {
+        const c = getContent();
         setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8');
-        return getContent().llmsTxt;
+        setResponseHeader(event, 'etag', c.etags.llmsTxt);
+        setResponseHeader(event, 'cache-control', 'public, max-age=3600');
+        if (getRequestHeader(event, 'if-none-match') === c.etags.llmsTxt) {
+          event.node.res.statusCode = 304;
+          return '';
+        }
+        return c.llmsTxt;
       }),
     );
   }
@@ -57,8 +91,15 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     router.get(
       humanPath,
       defineEventHandler((event) => {
+        const c = getContent();
         setResponseHeader(event, 'content-type', 'text/markdown; charset=utf-8');
-        return getContent().humanDocs;
+        setResponseHeader(event, 'etag', c.etags.humanDocs);
+        setResponseHeader(event, 'cache-control', 'public, max-age=3600');
+        if (getRequestHeader(event, 'if-none-match') === c.etags.humanDocs) {
+          event.node.res.statusCode = 304;
+          return '';
+        }
+        return c.humanDocs;
       }),
     );
   }

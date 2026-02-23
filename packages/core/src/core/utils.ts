@@ -69,3 +69,15 @@ export function extractParamsByLocation(
 ): ParameterObject[] {
   return parameters.filter((p) => p.in === location);
 }
+
+/**
+ * Compute a lightweight ETag from string content using djb2 hash.
+ * Returns a quoted ETag string like `"1a2b3c"`.
+ */
+export function computeEtag(content: string): string {
+  let hash = 5381;
+  for (let i = 0; i < content.length; i++) {
+    hash = ((hash << 5) + hash + content.charCodeAt(i)) & 0xffffffff;
+  }
+  return `"${(hash >>> 0).toString(36)}"`;
+}
