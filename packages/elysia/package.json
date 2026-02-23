@@ -39,6 +39,9 @@
   "peerDependencies": {
     "elysia": ">= 1.4.0"
   },
+  "devDependencies": {
+    "elysia": "^1.4.0"
+  },
   "publishConfig": {
     "access": "public"
   },
