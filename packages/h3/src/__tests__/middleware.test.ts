@@ -3,12 +3,6 @@ import { createApp, toNodeListener } from 'h3';
 import request from 'supertest';
 import { swagentH3 } from '../middleware.js';
 import type { OpenAPISpec } from '@swagent/core';
-import * as core from '@swagent/core';
-
-vi.mock('@swagent/core', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@swagent/core')>();
-  return { ...mod, generate: vi.fn(mod.generate) };
-});
 
 const testSpec: OpenAPISpec = {
   info: { title: 'Test API', version: '1.0.0', description: 'A test API' },
@@ -277,12 +271,12 @@ describe('@swagent/h3 default export', () => {
 describe('@swagent/h3 error handling', () => {
   it('serves fallback content when generation fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
-      throw new Error('Generation failed');
-    });
+
+    const brokenSpec = {} as OpenAPISpec;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
 
     const app = createApp();
-    app.use(swagentH3(testSpec));
+    app.use(swagentH3(brokenSpec));
     const req = request(toNodeListener(app));
 
     const landing = await req.get('/');

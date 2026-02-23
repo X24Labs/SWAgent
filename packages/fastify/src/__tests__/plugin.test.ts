@@ -2,12 +2,6 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import { swagentFastify } from '../plugin.js';
-import * as core from '@swagent/core';
-
-vi.mock('@swagent/core', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@swagent/core')>();
-  return { ...mod, generate: vi.fn(mod.generate) };
-});
 
 function buildApp(swagentOpts = {}) {
   const app = Fastify({ logger: false });
@@ -257,11 +251,14 @@ describe('@swagent/fastify default export', () => {
 
 describe('@swagent/fastify error handling', () => {
   it('serves fallback content when generation fails', async () => {
-    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
-      throw new Error('Generation failed');
-    });
+    const app = Fastify({ logger: false });
 
-    const app = buildApp();
+    // Mock swagger() to return a spec that causes generate() to throw
+    const brokenSpec = {} as any;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+    (app as any).swagger = () => brokenSpec;
+
+    app.register(swagentFastify);
     await app.ready();
 
     const landing = await app.inject({ method: 'GET', url: '/' });

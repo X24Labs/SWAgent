@@ -216,11 +216,13 @@ export class SwagentModule {
     const prefix = (options.path || '').replace(/\/$/, '');
     const httpAdapter = app.getHttpAdapter();
 
+    let openapiEtag: string;
+    try { openapiEtag = computeEtag(JSON.stringify(spec)); } catch { openapiEtag = computeEtag('{}'); }
     const etags = {
       llmsTxt: computeEtag(output.llmsTxt),
       humanDocs: computeEtag(output.humanDocs),
       htmlLanding: computeEtag(output.htmlLanding),
-      openapi: computeEtag(JSON.stringify(spec)),
+      openapi: openapiEtag,
     };
 
     const serve = (path: string, contentType: string, body: string, etag: string) => {
@@ -264,7 +266,9 @@ export class SwagentModule {
         typeof routes.openapi === 'string'
           ? routes.openapi
           : `${prefix}/openapi.json`;
-      serve(p, 'application/json; charset=utf-8', JSON.stringify(spec), etags.openapi);
+      let specJson: string;
+      try { specJson = JSON.stringify(spec); } catch { specJson = '{}'; }
+      serve(p, 'application/json; charset=utf-8', specJson, etags.openapi);
     }
   }
 }

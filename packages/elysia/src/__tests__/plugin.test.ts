@@ -2,12 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { Elysia } from 'elysia';
 import { swagentElysia } from '../plugin.js';
 import type { OpenAPISpec } from '@swagent/core';
-import * as core from '@swagent/core';
-
-vi.mock('@swagent/core', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@swagent/core')>();
-  return { ...mod, generate: vi.fn(mod.generate) };
-});
 
 const testSpec: OpenAPISpec = {
   info: { title: 'Test API', version: '1.0.0', description: 'A test API' },
@@ -261,11 +255,11 @@ describe('@swagent/elysia default export', () => {
 describe('@swagent/elysia error handling', () => {
   it('serves fallback content when generation fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
-      throw new Error('Generation failed');
-    });
 
-    const app = new Elysia().use(swagentElysia(testSpec));
+    const brokenSpec = {} as OpenAPISpec;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+
+    const app = new Elysia().use(swagentElysia(brokenSpec));
 
     const landing = await app.handle(new Request('http://localhost/'));
     expect(landing.status).toBe(200);

@@ -4,12 +4,6 @@ import Router from '@koa/router';
 import request from 'supertest';
 import { swagentKoa } from '../middleware.js';
 import type { OpenAPISpec } from '@swagent/core';
-import * as core from '@swagent/core';
-
-vi.mock('@swagent/core', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('@swagent/core')>();
-  return { ...mod, generate: vi.fn(mod.generate) };
-});
 
 const testSpec: OpenAPISpec = {
   info: { title: 'Test API', version: '1.0.0', description: 'A test API' },
@@ -260,12 +254,12 @@ describe('@swagent/koa default export', () => {
 describe('@swagent/koa error handling', () => {
   it('serves fallback content when generation fails', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
-    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
-      throw new Error('Generation failed');
-    });
+
+    const brokenSpec = {} as OpenAPISpec;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
 
     const app = new Koa();
-    const router = swagentKoa(testSpec);
+    const router = swagentKoa(brokenSpec);
     app.use(router.routes());
     app.use(router.allowedMethods());
 
