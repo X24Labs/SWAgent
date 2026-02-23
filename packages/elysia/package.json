@@ -1,0 +1,51 @@
+{
+  "name": "@swagent/elysia",
+  "version": "0.1.0",
+  "description": "Swagent plugin for Elysia. Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "llms-txt",
+    "api-docs",
+    "ai-first",
+    "documentation",
+    "elysia",
+    "bun",
+    "plugin"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@swagent/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "elysia": ">= 1.4.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/X24Labs/SWAgent.git",
+    "directory": "packages/elysia"
+  },
+  "homepage": "https://swagent.dev"
+}
