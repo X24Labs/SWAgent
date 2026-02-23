@@ -27,7 +27,8 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@swagent/core": "workspace:*"
+    "@swagent/core": "workspace:*",
+    "yaml": "^2.8.2"
   },
   "publishConfig": {
     "access": "public"

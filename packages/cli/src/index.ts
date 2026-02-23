@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
-import { resolve, basename } from 'node:path';
+import { resolve, extname } from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { generate, type OpenAPISpec, type SwagentOptions } from '@swagent/core';
 
 const VERSION = '0.1.0';
@@ -25,12 +26,31 @@ Options:
 
 Examples:
   swagent generate ./openapi.json
+  swagent generate ./openapi.yaml
   swagent generate https://api.example.com/openapi.json
   swagent generate ./spec.json -o ./docs -b https://api.example.com
-  swagent generate ./spec.json -f llms-txt
+  swagent generate ./spec.yaml -f llms-txt
 `.trim();
 
 type Format = 'llms-txt' | 'human' | 'html' | 'all';
+
+function isYamlSource(source: string): boolean {
+  const ext = extname(source).toLowerCase();
+  return ext === '.yaml' || ext === '.yml';
+}
+
+function parseSpec(content: string, source: string): OpenAPISpec {
+  if (isYamlSource(source)) {
+    return parseYaml(content) as OpenAPISpec;
+  }
+
+  // Try JSON first, fall back to YAML for URLs or ambiguous content
+  try {
+    return JSON.parse(content) as OpenAPISpec;
+  } catch {
+    return parseYaml(content) as OpenAPISpec;
+  }
+}
 
 async function loadSpec(source: string): Promise<OpenAPISpec> {
   if (source.startsWith('http://') || source.startsWith('https://')) {
@@ -38,12 +58,13 @@ async function loadSpec(source: string): Promise<OpenAPISpec> {
     if (!res.ok) {
       throw new Error(`Failed to fetch spec from ${source}: ${res.status} ${res.statusText}`);
     }
-    return (await res.json()) as OpenAPISpec;
+    const text = await res.text();
+    return parseSpec(text, source);
   }
 
   const filePath = resolve(source);
   const content = await readFile(filePath, 'utf-8');
-  return JSON.parse(content) as OpenAPISpec;
+  return parseSpec(content, source);
 }
 
 function getFormats(format: Format): { llmsTxt: boolean; human: boolean; html: boolean } {

@@ -46,13 +46,51 @@ const sampleSpec = {
   },
 };
 
+const sampleYaml = `openapi: "3.0.0"
+info:
+  title: YAML API
+  version: "1.0.0"
+  description: A YAML test API
+servers:
+  - url: https://api.yaml-test.io
+tags:
+  - name: Users
+    description: User operations
+paths:
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+`;
+
 let tmpDir: string;
 let specPath: string;
+let yamlPath: string;
+let ymlPath: string;
 
 beforeAll(async () => {
   tmpDir = await mkdtemp(join(tmpdir(), 'swagent-cli-test-'));
   specPath = join(tmpDir, 'openapi.json');
+  yamlPath = join(tmpDir, 'openapi.yaml');
+  ymlPath = join(tmpDir, 'openapi.yml');
   await writeFile(specPath, JSON.stringify(sampleSpec), 'utf-8');
+  await writeFile(yamlPath, sampleYaml, 'utf-8');
+  await writeFile(ymlPath, sampleYaml, 'utf-8');
 });
 
 afterAll(async () => {
@@ -165,5 +203,50 @@ describe('swagent CLI', () => {
 
     const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
     expect(llms).toContain('# Test CLI API');
+  });
+});
+
+describe('swagent CLI YAML support', () => {
+  it('generates docs from .yaml file', async () => {
+    const outDir = join(tmpDir, 'out-yaml');
+    const { stdout } = await exec('node', [CLI, 'generate', yamlPath, '-o', outDir]);
+
+    expect(stdout).toContain('YAML API');
+    expect(stdout).toContain('llms.txt');
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# YAML API');
+    expect(llms).toContain('List users');
+  });
+
+  it('generates docs from .yml file', async () => {
+    const outDir = join(tmpDir, 'out-yml');
+    const { stdout } = await exec('node', [CLI, 'generate', ymlPath, '-o', outDir, '-f', 'llms-txt']);
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# YAML API');
+  });
+
+  it('generates all formats from YAML', async () => {
+    const outDir = join(tmpDir, 'out-yaml-all');
+    await exec('node', [CLI, 'generate', yamlPath, '-o', outDir]);
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# YAML API');
+
+    const human = await readFile(join(outDir, 'to-humans.md'), 'utf-8');
+    expect(human).toContain('# YAML API');
+
+    const html = await readFile(join(outDir, 'index.html'), 'utf-8');
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('YAML API');
+  });
+
+  it('respects --title flag with YAML input', async () => {
+    const outDir = join(tmpDir, 'out-yaml-title');
+    await exec('node', [CLI, 'generate', yamlPath, '-o', outDir, '-t', 'Custom YAML Title', '-f', 'llms-txt']);
+
+    const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llms).toContain('# Custom YAML Title');
   });
 });
