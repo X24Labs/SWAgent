@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { execFile } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -248,5 +248,72 @@ describe('swagent CLI YAML support', () => {
 
     const llms = await readFile(join(outDir, 'llms.txt'), 'utf-8');
     expect(llms).toContain('# Custom YAML Title');
+  });
+});
+
+describe('swagent CLI --watch mode', () => {
+  it('shows --watch in help', async () => {
+    const { stdout } = await exec('node', [CLI, '--help']);
+    expect(stdout).toContain('--watch');
+    expect(stdout).toContain('Watch spec file');
+  });
+
+  it('regenerates docs when spec file changes', async () => {
+    const outDir = join(tmpDir, 'out-watch');
+    const watchSpec = join(tmpDir, 'watch-spec.json');
+    await writeFile(watchSpec, JSON.stringify(sampleSpec), 'utf-8');
+
+    const child: ChildProcess = spawn('node', [CLI, 'generate', watchSpec, '-o', outDir, '-w', '-f', 'llms-txt']);
+
+    let output = '';
+    child.stdout?.on('data', (data: Buffer) => {
+      output += data.toString();
+    });
+    child.stderr?.on('data', (data: Buffer) => {
+      output += data.toString();
+    });
+
+    // Wait for initial generation
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (output.includes('Watching')) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+    });
+
+    // Verify initial generation
+    const llmsInitial = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llmsInitial).toContain('# Test CLI API');
+
+    // Modify the spec file
+    const updatedSpec = { ...sampleSpec, info: { ...sampleSpec.info, title: 'Updated Watch API' } };
+    await writeFile(watchSpec, JSON.stringify(updatedSpec), 'utf-8');
+
+    // Wait for regeneration (debounce 300ms + generation time)
+    await new Promise<void>((resolve) => {
+      const check = setInterval(() => {
+        if (output.includes('Change detected') && output.includes('Done.')) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 100);
+    });
+
+    // Verify regenerated docs have updated content
+    const llmsUpdated = await readFile(join(outDir, 'llms.txt'), 'utf-8');
+    expect(llmsUpdated).toContain('# Updated Watch API');
+
+    child.kill();
+  }, 10000);
+
+  it('shows error for --watch with URL spec', async () => {
+    try {
+      await exec('node', [CLI, 'generate', 'https://example.com/spec.json', '-w']);
+      expect.unreachable('Should have thrown');
+    } catch (err: any) {
+      expect(err.stderr).toContain('--watch is not supported with URL specs');
+    }
   });
 });

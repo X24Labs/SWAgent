@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { watch } from 'node:fs';
 import { resolve, extname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { generate, type OpenAPISpec, type SwagentOptions } from '@swagent/core';
@@ -23,6 +24,7 @@ Options:
   -f, --format <format>       Output format: llms-txt, human, html, all (default: all)
   -t, --title <title>         Override API title
   --theme <theme>             Theme: dark, light (default: dark)
+  -w, --watch                 Watch spec file for changes and regenerate
 
 Examples:
   swagent generate ./openapi.json
@@ -30,6 +32,7 @@ Examples:
   swagent generate https://api.example.com/openapi.json
   swagent generate ./spec.json -o ./docs -b https://api.example.com
   swagent generate ./spec.yaml -f llms-txt
+  swagent generate ./spec.json -o ./docs --watch
 `.trim();
 
 type Format = 'llms-txt' | 'human' | 'html' | 'all';
@@ -82,6 +85,52 @@ function getFormats(format: Format): { llmsTxt: boolean; human: boolean; html: b
   }
 }
 
+function timestamp(): string {
+  return new Date().toLocaleTimeString();
+}
+
+interface GenerateContext {
+  specSource: string;
+  outputDir: string;
+  formats: { llmsTxt: boolean; human: boolean; html: boolean };
+  options: SwagentOptions;
+}
+
+async function generateDocs(ctx: GenerateContext): Promise<void> {
+  const spec = await loadSpec(ctx.specSource);
+  const title = ctx.options.title || spec.info?.title || 'API';
+  const output = generate(spec, ctx.options);
+
+  await mkdir(ctx.outputDir, { recursive: true });
+
+  const written: string[] = [];
+
+  if (ctx.formats.llmsTxt) {
+    const path = resolve(ctx.outputDir, 'llms.txt');
+    await writeFile(path, output.llmsTxt, 'utf-8');
+    written.push(`  llms.txt       (${output.llmsTxt.length} bytes)`);
+  }
+
+  if (ctx.formats.human) {
+    const path = resolve(ctx.outputDir, 'to-humans.md');
+    await writeFile(path, output.humanDocs, 'utf-8');
+    written.push(`  to-humans.md   (${output.humanDocs.length} bytes)`);
+  }
+
+  if (ctx.formats.html) {
+    const path = resolve(ctx.outputDir, 'index.html');
+    await writeFile(path, output.htmlLanding, 'utf-8');
+    written.push(`  index.html     (${output.htmlLanding.length} bytes)`);
+  }
+
+  console.log(`Generated docs for "${title}" in ${ctx.outputDir}/:`);
+  written.forEach((line) => console.log(line));
+}
+
+function isUrl(source: string): boolean {
+  return source.startsWith('http://') || source.startsWith('https://');
+}
+
 async function run() {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -91,6 +140,7 @@ async function run() {
       format: { type: 'string', short: 'f', default: 'all' },
       title: { type: 'string', short: 't' },
       theme: { type: 'string' },
+      watch: { type: 'boolean', short: 'w' },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },
@@ -118,44 +168,47 @@ async function run() {
   const format = values.format as Format;
   const formats = getFormats(format);
 
-  console.log(`Loading spec from ${specSource}...`);
-  const spec = await loadSpec(specSource);
-  const title = values.title || spec.info?.title || 'API';
-  console.log(`Generating docs for "${title}"...`);
-
   const options: SwagentOptions = {
     baseUrl: values['base-url'],
     title: values.title,
     theme: (values.theme as 'dark' | 'light') || 'dark',
   };
 
-  const output = generate(spec, options);
+  const ctx: GenerateContext = { specSource, outputDir, formats, options };
 
-  await mkdir(outputDir, { recursive: true });
-
-  const written: string[] = [];
-
-  if (formats.llmsTxt) {
-    const path = resolve(outputDir, 'llms.txt');
-    await writeFile(path, output.llmsTxt, 'utf-8');
-    written.push(`  llms.txt       (${output.llmsTxt.length} bytes)`);
+  // Validate --watch before doing anything
+  if (values.watch && isUrl(specSource)) {
+    console.error('Error: --watch is not supported with URL specs. Use a local file.');
+    process.exit(1);
   }
 
-  if (formats.human) {
-    const path = resolve(outputDir, 'to-humans.md');
-    await writeFile(path, output.humanDocs, 'utf-8');
-    written.push(`  to-humans.md   (${output.humanDocs.length} bytes)`);
+  // Initial generation
+  console.log(`Loading spec from ${specSource}...`);
+  await generateDocs(ctx);
+  console.log('');
+
+  if (!values.watch) {
+    console.log('Done.');
+    return;
   }
 
-  if (formats.html) {
-    const path = resolve(outputDir, 'index.html');
-    await writeFile(path, output.htmlLanding, 'utf-8');
-    written.push(`  index.html     (${output.htmlLanding.length} bytes)`);
-  }
+  const filePath = resolve(specSource);
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  console.log(`\nWritten to ${outputDir}/:`);
-  written.forEach((line) => console.log(line));
-  console.log('\nDone.');
+  console.log(`Watching ${specSource} for changes... (press Ctrl+C to stop)\n`);
+
+  watch(filePath, () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      console.log(`[${timestamp()}] Change detected, regenerating...`);
+      try {
+        await generateDocs(ctx);
+        console.log(`[${timestamp()}] Done.\n`);
+      } catch (err: any) {
+        console.error(`[${timestamp()}] Error: ${err.message}\n`);
+      }
+    }, 300);
+  });
 }
 
 run().catch((err) => {
