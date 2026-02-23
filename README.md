@@ -184,6 +184,32 @@ app.use(
 
 Bun-native. Follows the Elysia plugin pattern with `.use()`. Content is lazily cached on first request.
 
+### Koa
+
+```bash
+npm install @swagent/koa
+```
+
+```typescript
+import Koa from 'koa';
+import { swagentKoa } from '@swagent/koa';
+
+const app = new Koa();
+const spec = { /* your OpenAPI spec */ };
+const swagent = swagentKoa(spec, { baseUrl: 'https://api.example.com' });
+
+app.use(swagent.routes());
+app.use(swagent.allowedMethods());
+
+// Or mount on a subpath with @koa/router:
+const Router = require('@koa/router');
+const parent = new Router();
+parent.use('/docs', swagent.routes(), swagent.allowedMethods());
+app.use(parent.routes());
+```
+
+Returns a `@koa/router` Router instance. Content is lazily cached on first request.
+
 ### NestJS
 
 ```bash
@@ -354,6 +380,7 @@ Every adapter serves the same four routes by default:
 | [`@swagent/express`](packages/express) | Express middleware | `express >=5` |
 | [`@swagent/hono`](packages/hono) | Hono middleware | `hono >=4` |
 | [`@swagent/elysia`](packages/elysia) | Elysia plugin | `elysia >=1.4` |
+| [`@swagent/koa`](packages/koa) | Koa middleware | `koa >=2`, `@koa/router >=12` |
 | [`@swagent/nestjs`](packages/nestjs) | NestJS module | `@nestjs/common >=10`, `@nestjs/core >=10` |
 | [`swagent`](packages/cli) | CLI tool | none |
 
