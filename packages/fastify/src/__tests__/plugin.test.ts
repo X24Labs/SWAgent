@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import { swagentFastify } from '../plugin.js';
@@ -246,5 +246,33 @@ describe('@swagent/fastify default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/fastify error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    const app = Fastify({ logger: false });
+
+    // Mock swagger() to return a spec that causes generate() to throw
+    const brokenSpec = {} as any;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+    (app as any).swagger = () => brokenSpec;
+
+    app.register(swagentFastify);
+    await app.ready();
+
+    const landing = await app.inject({ method: 'GET', url: '/' });
+    expect(landing.statusCode).toBe(200);
+    expect(landing.body).toContain('Documentation generation failed');
+
+    const llms = await app.inject({ method: 'GET', url: '/llms.txt' });
+    expect(llms.statusCode).toBe(200);
+    expect(llms.body).toContain('Documentation generation failed');
+
+    const human = await app.inject({ method: 'GET', url: '/to-humans.md' });
+    expect(human.statusCode).toBe(200);
+    expect(human.body).toContain('Documentation generation failed');
+
+    await app.close();
   });
 });

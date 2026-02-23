@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import Koa from 'koa';
 import Router from '@koa/router';
 import request from 'supertest';
@@ -248,5 +248,33 @@ describe('@swagent/koa default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/koa error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const brokenSpec = {} as OpenAPISpec;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+
+    const app = new Koa();
+    const router = swagentKoa(brokenSpec);
+    app.use(router.routes());
+    app.use(router.allowedMethods());
+
+    const landing = await request(app.callback()).get('/');
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('Documentation generation failed');
+
+    const llms = await request(app.callback()).get('/llms.txt');
+    expect(llms.status).toBe(200);
+    expect(llms.text).toContain('Documentation generation failed');
+
+    const human = await request(app.callback()).get('/to-humans.md');
+    expect(human.status).toBe(200);
+    expect(human.text).toContain('Documentation generation failed');
+
+    vi.restoreAllMocks();
   });
 });

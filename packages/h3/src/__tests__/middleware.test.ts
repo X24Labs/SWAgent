@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createApp, toNodeListener } from 'h3';
 import request from 'supertest';
 import { swagentH3 } from '../middleware.js';
@@ -265,5 +265,32 @@ describe('@swagent/h3 default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/h3 error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const brokenSpec = {} as OpenAPISpec;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+
+    const app = createApp();
+    app.use(swagentH3(brokenSpec));
+    const req = request(toNodeListener(app));
+
+    const landing = await req.get('/');
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('Documentation generation failed');
+
+    const llms = await req.get('/llms.txt');
+    expect(llms.status).toBe(200);
+    expect(llms.text).toContain('Documentation generation failed');
+
+    const human = await req.get('/to-humans.md');
+    expect(human.status).toBe(200);
+    expect(human.text).toContain('Documentation generation failed');
+
+    vi.restoreAllMocks();
   });
 });

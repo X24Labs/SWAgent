@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { swagentExpress } from '../middleware.js';
@@ -245,5 +245,31 @@ describe('@swagent/express default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/express error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const brokenSpec = {} as OpenAPISpec;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+
+    const app = express();
+    app.use(swagentExpress(brokenSpec));
+
+    const landing = await request(app).get('/');
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('Documentation generation failed');
+
+    const llms = await request(app).get('/llms.txt');
+    expect(llms.status).toBe(200);
+    expect(llms.text).toContain('Documentation generation failed');
+
+    const human = await request(app).get('/to-humans.md');
+    expect(human.status).toBe(200);
+    expect(human.text).toContain('Documentation generation failed');
+
+    vi.restoreAllMocks();
   });
 });

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { generate, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentFastifyOptions extends SwagentOptions {}
 
@@ -84,9 +84,10 @@ async function swagentPlugin(
       );
     } catch (err) {
       fastify.log.error(err, 'swagent: failed to generate docs');
-      llmsTxtContent = '# API\n\n> Documentation generation failed.';
-      htmlContent =
-        '<!DOCTYPE html><html><body><h1>API</h1><p>Documentation generation failed.</p></body></html>';
+      const fb = fallbackOutput();
+      llmsTxtContent = fb.llmsTxt;
+      humanDocsContent = fb.humanDocs;
+      htmlContent = fb.htmlLanding;
     }
   });
 }

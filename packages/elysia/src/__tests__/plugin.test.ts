@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Elysia } from 'elysia';
 import { swagentElysia } from '../plugin.js';
 import type { OpenAPISpec } from '@swagent/core';
@@ -249,5 +249,30 @@ describe('@swagent/elysia default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/elysia error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const brokenSpec = {} as OpenAPISpec;
+    Object.defineProperty(brokenSpec, 'paths', { get() { throw new Error('Malformed spec'); }, enumerable: true });
+
+    const app = new Elysia().use(swagentElysia(brokenSpec));
+
+    const landing = await app.handle(new Request('http://localhost/'));
+    expect(landing.status).toBe(200);
+    expect(await landing.text()).toContain('Documentation generation failed');
+
+    const llms = await app.handle(new Request('http://localhost/llms.txt'));
+    expect(llms.status).toBe(200);
+    expect(await llms.text()).toContain('Documentation generation failed');
+
+    const human = await app.handle(new Request('http://localhost/to-humans.md'));
+    expect(human.status).toBe(200);
+    expect(await human.text()).toContain('Documentation generation failed');
+
+    vi.restoreAllMocks();
   });
 });

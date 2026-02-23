@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   generate,
+  fallbackOutput,
   computeEtag,
   type SwagentOptions,
   type SwagentOutput,
@@ -38,16 +39,32 @@ export class SwagentService {
 
   getContent(): SwagentOutput & { etags: { llmsTxt: string; humanDocs: string; htmlLanding: string; openapi: string } } {
     if (!this.cached) {
-      const output = generate(this.options.spec, this.options);
-      this.cached = {
-        ...output,
-        etags: {
-          llmsTxt: computeEtag(output.llmsTxt),
-          humanDocs: computeEtag(output.humanDocs),
-          htmlLanding: computeEtag(output.htmlLanding),
-          openapi: computeEtag(JSON.stringify(this.options.spec)),
-        },
-      };
+      try {
+        const output = generate(this.options.spec, this.options);
+        this.cached = {
+          ...output,
+          etags: {
+            llmsTxt: computeEtag(output.llmsTxt),
+            humanDocs: computeEtag(output.humanDocs),
+            htmlLanding: computeEtag(output.htmlLanding),
+            openapi: computeEtag(JSON.stringify(this.options.spec)),
+          },
+        };
+      } catch (err) {
+        console.error('swagent: failed to generate docs', err);
+        const fb = fallbackOutput();
+        let openapiEtag: string;
+        try { openapiEtag = computeEtag(JSON.stringify(this.options.spec)); } catch { openapiEtag = computeEtag('{}'); }
+        this.cached = {
+          ...fb,
+          etags: {
+            llmsTxt: computeEtag(fb.llmsTxt),
+            humanDocs: computeEtag(fb.humanDocs),
+            htmlLanding: computeEtag(fb.htmlLanding),
+            openapi: openapiEtag,
+          },
+        };
+      }
     }
     return this.cached;
   }
@@ -188,16 +205,24 @@ export class SwagentModule {
     spec: OpenAPISpec,
     options: SwagentSetupOptions = {},
   ): void {
-    const output = generate(spec, options);
+    let output;
+    try {
+      output = generate(spec, options);
+    } catch (err) {
+      console.error('swagent: failed to generate docs', err);
+      output = fallbackOutput();
+    }
     const routes = options.routes || {};
     const prefix = (options.path || '').replace(/\/$/, '');
     const httpAdapter = app.getHttpAdapter();
 
+    let openapiEtag: string;
+    try { openapiEtag = computeEtag(JSON.stringify(spec)); } catch { openapiEtag = computeEtag('{}'); }
     const etags = {
       llmsTxt: computeEtag(output.llmsTxt),
       humanDocs: computeEtag(output.humanDocs),
       htmlLanding: computeEtag(output.htmlLanding),
-      openapi: computeEtag(JSON.stringify(spec)),
+      openapi: openapiEtag,
     };
 
     const serve = (path: string, contentType: string, body: string, etag: string) => {
@@ -241,7 +266,9 @@ export class SwagentModule {
         typeof routes.openapi === 'string'
           ? routes.openapi
           : `${prefix}/openapi.json`;
-      serve(p, 'application/json; charset=utf-8', JSON.stringify(spec), etags.openapi);
+      let specJson: string;
+      try { specJson = JSON.stringify(spec); } catch { specJson = '{}'; }
+      serve(p, 'application/json; charset=utf-8', specJson, etags.openapi);
     }
   }
 }
