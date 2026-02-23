@@ -1,10 +1,16 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { SwagentModule } from '../module.js';
 import type { OpenAPISpec } from '@swagent/core';
+import * as core from '@swagent/core';
 import type { INestApplication } from '@nestjs/common';
+
+vi.mock('@swagent/core', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@swagent/core')>();
+  return { ...mod, generate: vi.fn(mod.generate) };
+});
 
 const testSpec: OpenAPISpec = {
   info: { title: 'Test API', version: '1.0.0', description: 'A test API' },
@@ -345,5 +351,55 @@ describe('@swagent/nestjs default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(mod.default).toBe(mod.SwagentModule);
+  });
+});
+
+describe('@swagent/nestjs error handling', () => {
+  it('serves fallback content via register() when generation fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error('Generation failed');
+    });
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [SwagentModule.register({ spec: testSpec })],
+    }).compile();
+
+    const app = moduleRef.createNestApplication();
+    await app.init();
+
+    const landing = await request(app.getHttpServer()).get('/');
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('Documentation generation failed');
+
+    const llms = await request(app.getHttpServer()).get('/llms.txt');
+    expect(llms.status).toBe(200);
+    expect(llms.text).toContain('Documentation generation failed');
+
+    await app.close();
+    vi.restoreAllMocks();
+  });
+
+  it('serves fallback content via setup() when generation fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error('Generation failed');
+    });
+
+    const moduleRef = await Test.createTestingModule({}).compile();
+    const app = moduleRef.createNestApplication();
+    SwagentModule.setup(app, testSpec, { path: '/docs' });
+    await app.init();
+
+    const landing = await request(app.getHttpServer()).get('/docs');
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('Documentation generation failed');
+
+    const llms = await request(app.getHttpServer()).get('/docs/llms.txt');
+    expect(llms.status).toBe(200);
+    expect(llms.text).toContain('Documentation generation failed');
+
+    await app.close();
+    vi.restoreAllMocks();
   });
 });

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { generate, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentHonoOptions extends SwagentOptions {}
 
@@ -19,18 +19,36 @@ export function swagentHono(
 
   function getContent() {
     if (!cached) {
-      const output = generate(spec, options);
-      cached = {
-        llmsTxt: output.llmsTxt,
-        humanDocs: output.humanDocs,
-        htmlLanding: output.htmlLanding,
-        etags: {
-          llmsTxt: computeEtag(output.llmsTxt),
-          humanDocs: computeEtag(output.humanDocs),
-          htmlLanding: computeEtag(output.htmlLanding),
-          openapi: computeEtag(JSON.stringify(spec)),
-        },
-      };
+      try {
+        const output = generate(spec, options);
+        cached = {
+          llmsTxt: output.llmsTxt,
+          humanDocs: output.humanDocs,
+          htmlLanding: output.htmlLanding,
+          etags: {
+            llmsTxt: computeEtag(output.llmsTxt),
+            humanDocs: computeEtag(output.humanDocs),
+            htmlLanding: computeEtag(output.htmlLanding),
+            openapi: computeEtag(JSON.stringify(spec)),
+          },
+        };
+      } catch (err) {
+        console.error('swagent: failed to generate docs', err);
+        const fb = fallbackOutput();
+        let openapiEtag: string;
+        try { openapiEtag = computeEtag(JSON.stringify(spec)); } catch { openapiEtag = computeEtag('{}'); }
+        cached = {
+          llmsTxt: fb.llmsTxt,
+          humanDocs: fb.humanDocs,
+          htmlLanding: fb.htmlLanding,
+          etags: {
+            llmsTxt: computeEtag(fb.llmsTxt),
+            humanDocs: computeEtag(fb.humanDocs),
+            htmlLanding: computeEtag(fb.htmlLanding),
+            openapi: openapiEtag,
+          },
+        };
+      }
     }
     return cached;
   }

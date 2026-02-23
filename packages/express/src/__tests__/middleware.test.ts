@@ -1,8 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { swagentExpress } from '../middleware.js';
 import type { OpenAPISpec } from '@swagent/core';
+import * as core from '@swagent/core';
+
+vi.mock('@swagent/core', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@swagent/core')>();
+  return { ...mod, generate: vi.fn(mod.generate) };
+});
 
 const testSpec: OpenAPISpec = {
   info: { title: 'Test API', version: '1.0.0', description: 'A test API' },
@@ -245,5 +251,31 @@ describe('@swagent/express default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/express error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error('Generation failed');
+    });
+
+    const app = express();
+    app.use(swagentExpress(testSpec));
+
+    const landing = await request(app).get('/');
+    expect(landing.status).toBe(200);
+    expect(landing.text).toContain('Documentation generation failed');
+
+    const llms = await request(app).get('/llms.txt');
+    expect(llms.status).toBe(200);
+    expect(llms.text).toContain('Documentation generation failed');
+
+    const human = await request(app).get('/to-humans.md');
+    expect(human.status).toBe(200);
+    expect(human.text).toContain('Documentation generation failed');
+
+    vi.restoreAllMocks();
   });
 });

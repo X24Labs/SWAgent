@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import Fastify from 'fastify';
 import swagger from '@fastify/swagger';
 import { swagentFastify } from '../plugin.js';
+import * as core from '@swagent/core';
+
+vi.mock('@swagent/core', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@swagent/core')>();
+  return { ...mod, generate: vi.fn(mod.generate) };
+});
 
 function buildApp(swagentOpts = {}) {
   const app = Fastify({ logger: false });
@@ -246,5 +252,30 @@ describe('@swagent/fastify default export', () => {
     const mod = await import('../index.js');
     expect(mod.default).toBeDefined();
     expect(typeof mod.default).toBe('function');
+  });
+});
+
+describe('@swagent/fastify error handling', () => {
+  it('serves fallback content when generation fails', async () => {
+    (core.generate as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error('Generation failed');
+    });
+
+    const app = buildApp();
+    await app.ready();
+
+    const landing = await app.inject({ method: 'GET', url: '/' });
+    expect(landing.statusCode).toBe(200);
+    expect(landing.body).toContain('Documentation generation failed');
+
+    const llms = await app.inject({ method: 'GET', url: '/llms.txt' });
+    expect(llms.statusCode).toBe(200);
+    expect(llms.body).toContain('Documentation generation failed');
+
+    const human = await app.inject({ method: 'GET', url: '/to-humans.md' });
+    expect(human.statusCode).toBe(200);
+    expect(human.body).toContain('Documentation generation failed');
+
+    await app.close();
   });
 });
