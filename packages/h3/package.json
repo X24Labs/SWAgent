@@ -1,0 +1,56 @@
+{
+  "name": "@swagent/h3",
+  "version": "0.1.0",
+  "description": "Swagent middleware for h3 (Nitro/Nuxt). Auto-generates /llms.txt, /to-humans.md, and HTML landing from your OpenAPI spec.",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "llms-txt",
+    "api-docs",
+    "ai-first",
+    "documentation",
+    "h3",
+    "nitro",
+    "nuxt",
+    "middleware"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@swagent/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "h3": "^1.13.0"
+  },
+  "devDependencies": {
+    "@types/supertest": "^6.0.3",
+    "supertest": "^7.2.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/X24Labs/SWAgent.git",
+    "directory": "packages/h3"
+  },
+  "homepage": "https://swagent.dev"
+}

@@ -210,6 +210,28 @@ app.use(parent.routes());
 
 Returns a `@koa/router` Router instance. Content is lazily cached on first request.
 
+### h3 (Nitro / Nuxt)
+
+```bash
+npm install @swagent/h3
+```
+
+```typescript
+import { createApp } from 'h3';
+import { swagentH3 } from '@swagent/h3';
+
+const app = createApp();
+const spec = { /* your OpenAPI spec */ };
+
+app.use(swagentH3(spec, { baseUrl: 'https://api.example.com' }));
+
+// Or in a Nitro server middleware (server/middleware/swagent.ts):
+import { useBase } from 'h3';
+export default useBase('/docs', swagentH3(spec).handler);
+```
+
+Returns an h3 Router. Compatible with h3, Nitro, and Nuxt server routes. Content is lazily cached on first request.
+
 ### NestJS
 
 ```bash
@@ -381,6 +403,7 @@ Every adapter serves the same four routes by default:
 | [`@swagent/hono`](packages/hono) | Hono middleware | `hono >=4` |
 | [`@swagent/elysia`](packages/elysia) | Elysia plugin | `elysia >=1.4` |
 | [`@swagent/koa`](packages/koa) | Koa middleware | `koa >=2`, `@koa/router >=12` |
+| [`@swagent/h3`](packages/h3) | h3 middleware | `h3 ^1.13` |
 | [`@swagent/nestjs`](packages/nestjs) | NestJS module | `@nestjs/common >=10`, `@nestjs/core >=10` |
 | [`swagent`](packages/cli) | CLI tool | none |
 
