@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentElysiaOptions extends SwagentOptions {}
 
@@ -66,7 +66,34 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
     app.get(landingPath, ({ request }) => {
       const c = getContent();
-      return cachedResponse(c.htmlLanding, 'text/html; charset=utf-8', c.etags.htmlLanding, request);
+      const acceptHeader = request.headers.get('accept');
+      const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+      if (wantsMarkdown) {
+        const tokens = estimateTokens(c.llmsTxt);
+        const headers: Record<string, string> = {
+          'content-type': 'text/markdown; charset=utf-8',
+          'x-markdown-tokens': String(tokens),
+          'vary': 'accept',
+          'etag': c.etags.llmsTxt,
+          'cache-control': 'public, max-age=3600',
+        };
+        if (request.headers.get('if-none-match') === c.etags.llmsTxt) {
+          return new Response(null, { status: 304, headers });
+        }
+        return new Response(c.llmsTxt, { headers });
+      } else {
+        const headers: Record<string, string> = {
+          'content-type': 'text/html; charset=utf-8',
+          'vary': 'accept',
+          'etag': c.etags.htmlLanding,
+          'cache-control': 'public, max-age=3600',
+        };
+        if (request.headers.get('if-none-match') === c.etags.htmlLanding) {
+          return new Response(null, { status: 304, headers });
+        }
+        return new Response(c.htmlLanding, { headers });
+      }
     });
   }
 

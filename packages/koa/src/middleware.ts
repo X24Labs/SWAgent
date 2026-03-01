@@ -1,5 +1,5 @@
 import Router from '@koa/router';
-import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentKoaOptions extends SwagentOptions {}
 
@@ -54,14 +54,32 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
     router.get('swagent-landing', landingPath, (ctx) => {
       const c = getContent();
-      ctx.set('ETag', c.etags.htmlLanding);
-      ctx.set('Cache-Control', 'public, max-age=3600');
-      if (ctx.get('If-None-Match') === c.etags.htmlLanding) {
-        ctx.status = 304;
-        return;
+      const acceptHeader = ctx.get('Accept');
+      const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+      if (wantsMarkdown) {
+        const tokens = estimateTokens(c.llmsTxt);
+        ctx.set('x-markdown-tokens', String(tokens));
+        ctx.set('Vary', 'accept');
+        ctx.set('ETag', c.etags.llmsTxt);
+        ctx.set('Cache-Control', 'public, max-age=3600');
+        if (ctx.get('If-None-Match') === c.etags.llmsTxt) {
+          ctx.status = 304;
+          return;
+        }
+        ctx.type = 'text/markdown; charset=utf-8';
+        ctx.body = c.llmsTxt;
+      } else {
+        ctx.set('Vary', 'accept');
+        ctx.set('ETag', c.etags.htmlLanding);
+        ctx.set('Cache-Control', 'public, max-age=3600');
+        if (ctx.get('If-None-Match') === c.etags.htmlLanding) {
+          ctx.status = 304;
+          return;
+        }
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = c.htmlLanding;
       }
-      ctx.type = 'text/html; charset=utf-8';
-      ctx.body = c.htmlLanding;
     });
   }
 

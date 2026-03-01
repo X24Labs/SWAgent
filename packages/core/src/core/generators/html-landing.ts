@@ -270,6 +270,18 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       color: var(--text);
       box-shadow: var(--glow-sm);
     }
+    .formats-tip {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    .formats-tip code {
+      font-family: monospace;
+      background: var(--surface-2);
+      padding: 0.1em 0.3em;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
 
     /* Divider */
     .divider {
@@ -415,6 +427,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
         <a href="/to-humans.md">/to-humans.md</a>
         <a href="/openapi.json">/openapi.json</a>
       </div>
+      <p class="formats-tip">Tip: send <code>Accept: text/markdown</code> to this page to receive the llms.txt content directly.</p>
     </div>
 
     <hr class="divider">

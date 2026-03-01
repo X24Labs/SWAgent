@@ -396,7 +396,30 @@ app.use(swagentExpress(spec, {
 
 ## Caching
 
-Every adapter returns `ETag` and `Cache-Control: public, max-age=3600` headers on all endpoints. Clients that send `If-None-Match` with a matching ETag receive a `304 Not Modified` response with no body, saving bandwidth on repeated requests.
+Every adapter returns `ETag` and `Cache-Control: public, max-age=3600` headers on all endpoints. Clients that send `If-None-Match` with a matching ETag receive a `304 Not Modified` response with no body, saving bandwidth on repeated requests. The landing page also returns `Vary: accept` since its response varies by the `Accept` header.
+
+## Content negotiation
+
+The landing page (`GET /`) supports content negotiation via the `Accept` header:
+
+- `Accept: text/html` (default) — returns the HTML landing page
+- `Accept: text/markdown` — returns the `llms.txt` content with `Content-Type: text/markdown`
+
+When serving markdown, the response includes an `x-markdown-tokens: N` header with an estimated token count. This is useful for LLM agents that want to check token cost before consuming the full response.
+
+Works with Cloudflare CDN and any cache that respects `Vary: accept`.
+
+```bash
+# Get the HTML landing page (default)
+curl https://api.example.com/
+
+# Get llms.txt via content negotiation
+curl -H "Accept: text/markdown" https://api.example.com/
+
+# Check token count without downloading
+curl -I -H "Accept: text/markdown" https://api.example.com/
+# x-markdown-tokens: 1842
+```
 
 ## Error handling
 
@@ -408,7 +431,7 @@ Every adapter serves the same four routes by default:
 
 | Route | Content-Type | Description |
 |-------|-------------|-------------|
-| `GET /` | `text/html` | Landing page with endpoint overview, auth info, format links |
+| `GET /` | `text/html` or `text/markdown` | Landing page (HTML default). Send `Accept: text/markdown` to receive the `llms.txt` content directly. |
 | `GET /llms.txt` | `text/plain` | Compact notation optimized for LLM token budgets |
 | `GET /to-humans.md` | `text/markdown` | Full reference with ToC, parameter tables, schemas |
 | `GET /openapi.json` | `application/json` | Raw OpenAPI spec passthrough |

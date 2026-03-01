@@ -1,6 +1,6 @@
 import { createRouter, defineEventHandler, setResponseHeader, getRequestHeader } from 'h3';
 import type { Router } from 'h3';
-import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentH3Options extends SwagentOptions {}
 
@@ -57,14 +57,32 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
       landingPath,
       defineEventHandler((event) => {
         const c = getContent();
-        setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
-        setResponseHeader(event, 'etag', c.etags.htmlLanding);
-        setResponseHeader(event, 'cache-control', 'public, max-age=3600');
-        if (getRequestHeader(event, 'if-none-match') === c.etags.htmlLanding) {
-          event.node.res.statusCode = 304;
-          return '';
+        const acceptHeader = getRequestHeader(event, 'accept');
+        const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+        if (wantsMarkdown) {
+          const tokens = estimateTokens(c.llmsTxt);
+          setResponseHeader(event, 'content-type', 'text/markdown; charset=utf-8');
+          setResponseHeader(event, 'x-markdown-tokens', String(tokens));
+          setResponseHeader(event, 'vary', 'accept');
+          setResponseHeader(event, 'etag', c.etags.llmsTxt);
+          setResponseHeader(event, 'cache-control', 'public, max-age=3600');
+          if (getRequestHeader(event, 'if-none-match') === c.etags.llmsTxt) {
+            event.node.res.statusCode = 304;
+            return '';
+          }
+          return c.llmsTxt;
+        } else {
+          setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
+          setResponseHeader(event, 'vary', 'accept');
+          setResponseHeader(event, 'etag', c.etags.htmlLanding);
+          setResponseHeader(event, 'cache-control', 'public, max-age=3600');
+          if (getRequestHeader(event, 'if-none-match') === c.etags.htmlLanding) {
+            event.node.res.statusCode = 304;
+            return '';
+          }
+          return c.htmlLanding;
         }
-        return c.htmlLanding;
       }),
     );
   }
