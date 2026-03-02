@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentHonoOptions extends SwagentOptions {}
 
@@ -57,12 +57,29 @@ export function swagentHono(
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
     app.get(landingPath, (c) => {
       const ct = getContent();
-      c.header('ETag', ct.etags.htmlLanding);
-      c.header('Cache-Control', 'public, max-age=3600');
-      if (c.req.header('If-None-Match') === ct.etags.htmlLanding) {
-        return c.body(null, 304);
+      const acceptHeader = c.req.header('Accept');
+      const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+      if (wantsMarkdown) {
+        const tokens = estimateTokens(ct.llmsTxt);
+        c.header('Content-Type', 'text/markdown; charset=utf-8');
+        c.header('x-markdown-tokens', String(tokens));
+        c.header('Vary', 'accept');
+        c.header('ETag', ct.etags.llmsTxt);
+        c.header('Cache-Control', 'public, max-age=3600');
+        if (c.req.header('If-None-Match') === ct.etags.llmsTxt) {
+          return c.body(null, 304);
+        }
+        return c.body(ct.llmsTxt);
+      } else {
+        c.header('Vary', 'accept');
+        c.header('ETag', ct.etags.htmlLanding);
+        c.header('Cache-Control', 'public, max-age=3600');
+        if (c.req.header('If-None-Match') === ct.etags.htmlLanding) {
+          return c.body(null, 304);
+        }
+        return c.html(ct.htmlLanding);
       }
-      return c.html(ct.htmlLanding);
     });
   }
 

@@ -27,7 +27,7 @@ LLM agents read your docs too. Swagger UI is built for humans clicking through a
 |--------|-----|------------|
 | **`llms.txt`** | AI agents | Token-optimized compact notation, ~60% smaller than raw JSON |
 | **`to-humans.md`** | Developers | Full markdown reference with ToC, parameter tables, response schemas |
-| **`index.html`** | Discovery | Semantic HTML landing page, dark-themed, zero JavaScript |
+| **`index.html`** | Humans + AI agents | HTML landing for browsers. Send `Accept: text/markdown` and it returns the AI-optimized format directly — no separate URL needed. |
 
 Your API becomes readable by both humans and machines without maintaining separate docs.
 
@@ -396,7 +396,30 @@ app.use(swagentExpress(spec, {
 
 ## Caching
 
-Every adapter returns `ETag` and `Cache-Control: public, max-age=3600` headers on all endpoints. Clients that send `If-None-Match` with a matching ETag receive a `304 Not Modified` response with no body, saving bandwidth on repeated requests.
+Every adapter returns `ETag` and `Cache-Control: public, max-age=3600` headers on all endpoints. Clients that send `If-None-Match` with a matching ETag receive a `304 Not Modified` response with no body, saving bandwidth on repeated requests. The landing page also returns `Vary: accept` since its response varies by the `Accept` header.
+
+## Content negotiation
+
+LLM agents don't need to know about `/llms.txt`. The root URL serves the right format based on the `Accept` header — standard HTTP, no URL convention required.
+
+- **Default (`text/html`)** — HTML landing page for browsers
+- **`Accept: text/markdown`** — returns the `llms.txt` content directly, same URL
+
+The agent hits the base URL it already has. One request, right format. No discovery step, no `/llms.txt` path to hardcode or explain.
+
+```bash
+# Browser: HTML landing page
+curl https://api.example.com/
+
+# LLM agent: token-optimized docs, same URL
+curl -H "Accept: text/markdown" https://api.example.com/
+
+# Check token count before downloading (HEAD request)
+curl -I -H "Accept: text/markdown" https://api.example.com/
+# x-markdown-tokens: 1842
+```
+
+The markdown response includes `x-markdown-tokens: N` (estimated token count) and `Vary: accept` for correct CDN caching. ETags are per-variant, so `If-None-Match` works correctly for both HTML and markdown responses.
 
 ## Error handling
 
@@ -408,7 +431,7 @@ Every adapter serves the same four routes by default:
 
 | Route | Content-Type | Description |
 |-------|-------------|-------------|
-| `GET /` | `text/html` | Landing page with endpoint overview, auth info, format links |
+| `GET /` | `text/html` or `text/markdown` | Landing page (HTML default). Send `Accept: text/markdown` to receive the `llms.txt` content directly. |
 | `GET /llms.txt` | `text/plain` | Compact notation optimized for LLM token budgets |
 | `GET /to-humans.md` | `text/markdown` | Full reference with ToC, parameter tables, schemas |
 | `GET /openapi.json` | `application/json` | Raw OpenAPI spec passthrough |

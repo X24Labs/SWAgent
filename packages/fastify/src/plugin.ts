@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentFastifyOptions extends SwagentOptions {}
 
@@ -20,12 +20,29 @@ async function swagentPlugin(
   if (routes.landing !== false) {
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
     fastify.get(landingPath, hiddenSchema, async (request, reply) => {
-      reply.header('etag', etags.htmlLanding);
-      reply.header('cache-control', 'public, max-age=3600');
-      if (request.headers['if-none-match'] === etags.htmlLanding) {
-        return reply.code(304).send();
+      const acceptHeader = request.headers['accept'];
+      const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+      if (wantsMarkdown) {
+        const tokens = estimateTokens(llmsTxtContent);
+        reply.header('content-type', 'text/markdown; charset=utf-8');
+        reply.header('x-markdown-tokens', String(tokens));
+        reply.header('vary', 'accept');
+        reply.header('etag', etags.llmsTxt);
+        reply.header('cache-control', 'public, max-age=3600');
+        if (request.headers['if-none-match'] === etags.llmsTxt) {
+          return reply.code(304).send();
+        }
+        return reply.send(llmsTxtContent);
+      } else {
+        reply.header('vary', 'accept');
+        reply.header('etag', etags.htmlLanding);
+        reply.header('cache-control', 'public, max-age=3600');
+        if (request.headers['if-none-match'] === etags.htmlLanding) {
+          return reply.code(304).send();
+        }
+        return reply.type('text/html; charset=utf-8').send(htmlContent);
       }
-      return reply.type('text/html; charset=utf-8').send(htmlContent);
     });
   }
 

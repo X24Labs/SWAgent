@@ -9,6 +9,7 @@
     "dev": "bun run --filter '*' dev",
     "typecheck": "bun run --filter '@swagent/core' build && bun run --filter '*' typecheck",
     "test": "vitest",
+    "test:integration": "vitest run packages/fastify/src/__tests__/integration.test.ts",
     "lint": "eslint packages/",
     "format": "prettier --write 'packages/*/src/**/*.ts'"
   },

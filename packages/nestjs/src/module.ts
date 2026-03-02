@@ -14,6 +14,7 @@ import {
   generate,
   fallbackOutput,
   computeEtag,
+  estimateTokens,
   type SwagentOptions,
   type SwagentOutput,
   type OpenAPISpec,
@@ -81,16 +82,32 @@ class SwagentController {
   ) {}
 
   @Get()
-  @Header('Content-Type', 'text/html; charset=utf-8')
   @Header('Cache-Control', 'public, max-age=3600')
-  landing(@Headers('if-none-match') inm: string, @Res() res: any): void {
+  landing(@Headers('accept') accept: string, @Headers('if-none-match') inm: string, @Res() res: any): void {
     const c = this.swagent.getContent();
-    res.set('ETag', c.etags.htmlLanding);
-    if (inm === c.etags.htmlLanding) {
-      res.status(304).end();
-      return;
+    const wantsMarkdown = typeof accept === 'string' && accept.includes('text/markdown');
+
+    if (wantsMarkdown) {
+      const tokens = estimateTokens(c.llmsTxt);
+      res.set('Content-Type', 'text/markdown; charset=utf-8');
+      res.set('x-markdown-tokens', String(tokens));
+      res.set('Vary', 'accept');
+      res.set('ETag', c.etags.llmsTxt);
+      if (inm === c.etags.llmsTxt) {
+        res.status(304).end();
+        return;
+      }
+      res.send(c.llmsTxt);
+    } else {
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      res.set('Vary', 'accept');
+      res.set('ETag', c.etags.htmlLanding);
+      if (inm === c.etags.htmlLanding) {
+        res.status(304).end();
+        return;
+      }
+      res.send(c.htmlLanding);
     }
-    res.send(c.htmlLanding);
   }
 
   @Get('llms.txt')
@@ -242,7 +259,34 @@ export class SwagentModule {
         typeof routes.landing === 'string'
           ? routes.landing
           : prefix || '/';
-      serve(p, 'text/html; charset=utf-8', output.htmlLanding, etags.htmlLanding);
+      httpAdapter.get(p, (req: any, res: any) => {
+        const acceptHeader = req.get('Accept');
+        const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+        if (wantsMarkdown) {
+          const tokens = estimateTokens(output.llmsTxt);
+          res.set('Content-Type', 'text/markdown; charset=utf-8');
+          res.set('x-markdown-tokens', String(tokens));
+          res.set('Vary', 'accept');
+          res.set('ETag', etags.llmsTxt);
+          res.set('Cache-Control', 'public, max-age=3600');
+          if (req.get('If-None-Match') === etags.llmsTxt) {
+            res.status(304).end();
+            return;
+          }
+          res.send(output.llmsTxt);
+        } else {
+          res.set('Content-Type', 'text/html; charset=utf-8');
+          res.set('Vary', 'accept');
+          res.set('ETag', etags.htmlLanding);
+          res.set('Cache-Control', 'public, max-age=3600');
+          if (req.get('If-None-Match') === etags.htmlLanding) {
+            res.status(304).end();
+            return;
+          }
+          res.send(output.htmlLanding);
+        }
+      });
     }
 
     if (routes.llmsTxt !== false) {

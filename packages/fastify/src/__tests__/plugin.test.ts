@@ -276,3 +276,72 @@ describe('@swagent/fastify error handling', () => {
     await app.close();
   });
 });
+
+describe('@swagent/fastify content negotiation', () => {
+  let app: ReturnType<typeof Fastify>;
+
+  beforeAll(async () => {
+    app = buildApp({ baseUrl: 'https://test.api.io' });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('serves llms.txt content when Accept: text/markdown', async () => {
+    const res = await app.inject({ method: 'GET', url: '/', headers: { accept: 'text/markdown' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/markdown');
+  });
+
+  it('landing with Accept: text/markdown returns llmsTxt body', async () => {
+    const res = await app.inject({ method: 'GET', url: '/', headers: { accept: 'text/markdown' } });
+    expect(res.body).toContain('## Conventions');
+    expect(res.body).not.toContain('<!DOCTYPE html>');
+  });
+
+  it('includes x-markdown-tokens header for markdown response', async () => {
+    const res = await app.inject({ method: 'GET', url: '/', headers: { accept: 'text/markdown' } });
+    const xMarkdownTokens = res.headers['x-markdown-tokens'];
+    expect(xMarkdownTokens).toBeDefined();
+    expect(Number(xMarkdownTokens)).toBeGreaterThan(0);
+  });
+
+  it('includes Vary: accept header for markdown response', async () => {
+    const res = await app.inject({ method: 'GET', url: '/', headers: { accept: 'text/markdown' } });
+    const vary = res.headers['vary'] as string;
+    expect(vary).toBeDefined();
+    expect(vary.toLowerCase()).toContain('accept');
+  });
+
+  it('ETag for markdown response matches llmsTxt ETag', async () => {
+    const llmsRes = await app.inject({ method: 'GET', url: '/llms.txt' });
+    const llmsEtag = llmsRes.headers['etag'];
+    const mdRes = await app.inject({ method: 'GET', url: '/', headers: { accept: 'text/markdown' } });
+    expect(mdRes.headers['etag']).toBe(llmsEtag);
+  });
+
+  it('serves HTML when no Accept header', async () => {
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+  });
+
+  it('serves HTML when Accept: text/html', async () => {
+    const res = await app.inject({ method: 'GET', url: '/', headers: { accept: 'text/html' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+  });
+
+  it('returns 304 for markdown when If-None-Match matches llmsTxt ETag', async () => {
+    const mdRes = await app.inject({ method: 'GET', url: '/', headers: { accept: 'text/markdown' } });
+    const etag = mdRes.headers['etag'] as string;
+    const res = await app.inject({
+      method: 'GET',
+      url: '/',
+      headers: { accept: 'text/markdown', 'if-none-match': etag },
+    });
+    expect(res.statusCode).toBe(304);
+  });
+});

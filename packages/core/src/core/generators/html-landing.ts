@@ -270,6 +270,44 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       color: var(--text);
       box-shadow: var(--glow-sm);
     }
+    .cn-callout {
+      margin-top: 1rem;
+      padding: 0.875rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      text-align: left;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .cn-callout-title {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.3rem;
+    }
+    .cn-callout-body {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      line-height: 1.5;
+    }
+    .cn-callout-code {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.78rem;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.4rem 0.65rem;
+      display: block;
+      white-space: nowrap;
+      overflow-x: auto;
+    }
 
     /* Divider */
     .divider {
@@ -415,6 +453,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
         <a href="/to-humans.md">/to-humans.md</a>
         <a href="/openapi.json">/openapi.json</a>
       </div>
+      <div class="cn-callout">\n        <div class="cn-callout-title">Machine-readable</div>\n        <p class="cn-callout-body">No separate URL to discover. Your AI agent hits this page directly and receives the token-optimized format — no /llms.txt convention required.</p>\n        <code class="cn-callout-code">curl -H &quot;Accept: text/markdown&quot; ${baseUrl}/</code>\n      </div>
     </div>
 
     <hr class="divider">

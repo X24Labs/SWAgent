@@ -81,3 +81,10 @@ export function computeEtag(content: string): string {
   }
   return `"${(hash >>> 0).toString(36)}"`;
 }
+
+/**
+ * Estimate token count from text length. Heuristic: ~4 chars per token.
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}

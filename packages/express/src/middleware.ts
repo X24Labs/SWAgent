@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { generate, fallbackOutput, computeEtag, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
 
 export interface SwagentExpressOptions extends SwagentOptions {}
 
@@ -67,7 +67,31 @@ export function swagentExpress(
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
     router.get(landingPath, (req: Request, res: Response) => {
       const c = getContent();
-      sendWithCache(req, res, c.htmlLanding, 'text/html; charset=utf-8', c.etags.htmlLanding);
+      const acceptHeader = req.get('Accept');
+      const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+      if (wantsMarkdown) {
+        const tokens = estimateTokens(c.llmsTxt);
+        res.set('Content-Type', 'text/markdown; charset=utf-8');
+        res.set('x-markdown-tokens', String(tokens));
+        res.set('Vary', 'accept');
+        res.set('ETag', c.etags.llmsTxt);
+        res.set('Cache-Control', 'public, max-age=3600');
+        if (req.get('If-None-Match') === c.etags.llmsTxt) {
+          res.status(304).end();
+          return;
+        }
+        res.send(c.llmsTxt);
+      } else {
+        res.set('Vary', 'accept');
+        res.set('ETag', c.etags.htmlLanding);
+        res.set('Cache-Control', 'public, max-age=3600');
+        if (req.get('If-None-Match') === c.etags.htmlLanding) {
+          res.status(304).end();
+          return;
+        }
+        res.type('text/html; charset=utf-8').send(c.htmlLanding);
+      }
     });
   }
 

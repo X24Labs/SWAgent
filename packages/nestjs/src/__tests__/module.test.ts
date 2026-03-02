@@ -394,3 +394,80 @@ describe('@swagent/nestjs error handling', () => {
     vi.restoreAllMocks();
   });
 });
+
+describe('@swagent/nestjs content negotiation', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        SwagentModule.register({
+          spec: testSpec,
+          baseUrl: 'https://test.api.io',
+        }),
+      ],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('serves llms.txt content when Accept: text/markdown', async () => {
+    const res = await request(app.getHttpServer()).get('/').set('Accept', 'text/markdown');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/markdown');
+  });
+
+  it('landing with Accept: text/markdown returns llmsTxt body', async () => {
+    const res = await request(app.getHttpServer()).get('/').set('Accept', 'text/markdown');
+    expect(res.text).toContain('## Conventions');
+    expect(res.text).not.toContain('<!DOCTYPE html>');
+  });
+
+  it('includes x-markdown-tokens header for markdown response', async () => {
+    const res = await request(app.getHttpServer()).get('/').set('Accept', 'text/markdown');
+    const xMarkdownTokens = res.headers['x-markdown-tokens'];
+    expect(xMarkdownTokens).toBeDefined();
+    expect(Number(xMarkdownTokens)).toBeGreaterThan(0);
+  });
+
+  it('includes Vary: accept header for markdown response', async () => {
+    const res = await request(app.getHttpServer()).get('/').set('Accept', 'text/markdown');
+    const vary = res.headers['vary'];
+    expect(vary).toBeDefined();
+    expect(vary.toLowerCase()).toContain('accept');
+  });
+
+  it('ETag for markdown response matches llmsTxt ETag', async () => {
+    const llmsRes = await request(app.getHttpServer()).get('/llms.txt');
+    const llmsEtag = llmsRes.headers['etag'];
+    const mdRes = await request(app.getHttpServer()).get('/').set('Accept', 'text/markdown');
+    expect(mdRes.headers['etag']).toBe(llmsEtag);
+  });
+
+  it('serves HTML when no Accept header', async () => {
+    const res = await request(app.getHttpServer()).get('/');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+  });
+
+  it('serves HTML when Accept: text/html', async () => {
+    const res = await request(app.getHttpServer()).get('/').set('Accept', 'text/html');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+  });
+
+  it('returns 304 for markdown when If-None-Match matches llmsTxt ETag', async () => {
+    const mdRes = await request(app.getHttpServer()).get('/').set('Accept', 'text/markdown');
+    const etag = mdRes.headers['etag'];
+    const res = await request(app.getHttpServer())
+      .get('/')
+      .set('Accept', 'text/markdown')
+      .set('If-None-Match', etag);
+    expect(res.status).toBe(304);
+  });
+});
