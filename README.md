@@ -31,6 +31,20 @@ LLM agents read your docs too. Swagger UI is built for humans clicking through a
 
 Your API becomes readable by both humans and machines without maintaining separate docs.
 
+### True AI-First: agents just read the URL
+
+LLM agents don't need to discover `/llms.txt`. The base URL serves the right format automatically:
+
+```bash
+# Browser gets HTML landing page
+curl https://api.example.com/
+
+# LLM agent gets token-optimized docs — same URL, standard HTTP
+curl -H "Accept: text/markdown" https://api.example.com/
+```
+
+When an agent reads your API URL to learn about it, it receives documentation built for machines — compact schemas, minimal tokens, zero noise. No special paths, no discovery step. One URL, right format, standard content negotiation.
+
 ## What llms.txt looks like
 
 A 20-endpoint OpenAPI spec compresses into something like this:
