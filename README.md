@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/npm/v/@swagent/core?label=npm&color=cb3837" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/npm/v/@swagent/core?label=npm&color=green" alt="npm version"></a>
   <a href="https://github.com/X24Labs/SWAgent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
   <img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/frameworks-7-green" alt="7 frameworks">
