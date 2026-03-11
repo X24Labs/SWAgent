@@ -70,7 +70,7 @@ describe('generateHtmlLanding', () => {
 
   it('always includes powered-by badge and brand', () => {
     const result = generateHtmlLanding(sampleSpec);
-    expect(result).toContain('SWAgent');
+    expect(result).toContain('SWAGENT');
     expect(result).toContain('swagent.dev');
     expect(result).toContain('Powered by');
   });

@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/X24Labs/SWAgent/main/assets/social-preview.png" alt="SWAgent - AI-first API documentation" width="640">
+  <img src="https://raw.githubusercontent.com/X24Labs/SWAGENT/main/assets/social-preview.png" alt="SWAGENT - AI-first API documentation" width="640">
 </p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/npm/v/@swagent/core?label=npm&color=green" alt="npm version"></a>
-  <a href="https://github.com/X24Labs/SWAgent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
+  <a href="https://github.com/X24Labs/SWAGENT/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
   <img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/frameworks-7-green" alt="7 frameworks">
   <img src="https://img.shields.io/badge/platform-Node%20%7C%20Bun%20%7C%20Deno-999" alt="platform">
@@ -49,7 +49,7 @@ Your docs are built for humans. LLM agents read them too.
 
 Swagger UI, Redoc, and traditional docs waste thousands of tokens on navigation chrome, repeated schemas, and verbose formatting. Your AI-powered integrations are paying the cost.
 
-SWAgent transforms your OpenAPI spec into three outputs:
+SWAGENT transforms your OpenAPI spec into three outputs:
 
 | Output             | For                | What it is                                                                                                        |
 | ------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -61,11 +61,11 @@ Your API becomes readable by both humans and machines without maintaining separa
 
 ## HTML landing page
 
-SWAgent generates a zero-dependency semantic HTML landing page for your API — dark theme, categorized endpoints, auth methods, content negotiation built in. No JavaScript, no build step.
+SWAGENT generates a zero-dependency semantic HTML landing page for your API — dark theme, categorized endpoints, auth methods, content negotiation built in. No JavaScript, no build step.
 
 <p align="center">
   <a href="https://api.alloverapps.com">
-    <img src="https://swagent.dev/shopify-app-preview.png" alt="SWAgent HTML landing page — All Over Apps Admin API" width="720">
+    <img src="https://swagent.dev/shopify-app-preview.png" alt="SWAGENT HTML landing page — All Over Apps Admin API" width="720">
   </a>
 </p>
 
@@ -375,7 +375,7 @@ Outputs: `llms.txt`, `to-humans.md`, `index.html`
 
 ## Token optimization
 
-SWAgent compresses your OpenAPI spec into a compact notation designed to minimize token usage while preserving all the information an LLM agent needs.
+SWAGENT compresses your OpenAPI spec into a compact notation designed to minimize token usage while preserving all the information an LLM agent needs.
 
 | Technique        | Example                                                   |
 | ---------------- | --------------------------------------------------------- |

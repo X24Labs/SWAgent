@@ -437,7 +437,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   <main>
     <div class="hero">
       <div class="brand">
-        <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(28)} SWAgent</a>
+        <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(28)} SWAGENT</a>
       </div>
       <span class="hero-label">AI-First API Documentation</span>
       <h1>${projectName}</h1>
@@ -486,7 +486,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
 
   <footer>
     <p>${projectName} v${version}</p>
-    <p class="powered-by">Powered by <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(16)} SWAgent</a></p>
+    <p class="powered-by">Powered by <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(16)} SWAGENT</a></p>
   </footer>
 </body>
 </html>`;
