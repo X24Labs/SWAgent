@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/X24Labs/SWAGENT/main/assets/social-preview.png" alt="SWAGENT - AI-first API documentation" width="640">
+  <img src="https://swagent.dev/og.jpg" alt="SWAGENT - AI-first API documentation" width="640">
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/npm/v/@swagent/core?label=npm&color=green" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/badge/npm-v0.1.7-green" alt="npm v0.1.7"></a>
   <a href="https://github.com/X24Labs/SWAGENT/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
   <img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/frameworks-7-green" alt="7 frameworks">
