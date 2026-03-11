@@ -79,10 +79,16 @@ export interface TagDefinition {
   description?: string;
 }
 
-export interface SecuritySchemes {
-  bearerAuth?: { type: string; scheme?: string };
-  apiKeyAuth?: { type: string; name?: string; in?: string };
+export interface SecuritySchemeObject {
+  type: string;
+  scheme?: string;
+  name?: string;
+  in?: string;
   [key: string]: unknown;
+}
+
+export interface SecuritySchemes {
+  [key: string]: SecuritySchemeObject | undefined;
 }
 
 export interface OpenAPISpec {
@@ -94,6 +100,7 @@ export interface OpenAPISpec {
   servers?: Array<{ url: string }>;
   paths?: Record<string, Record<string, OperationObject>>;
   tags?: TagDefinition[];
+  security?: SecurityRequirement[];
   components?: {
     securitySchemes?: SecuritySchemes;
     [key: string]: unknown;

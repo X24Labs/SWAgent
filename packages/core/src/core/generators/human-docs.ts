@@ -1,9 +1,5 @@
 import type { OpenAPISpec, SwagentOptions } from '../types.js';
-import {
-  groupPathsByTag,
-  formatSecurity,
-  extractParamsByLocation,
-} from '../utils.js';
+import { groupPathsByTag, formatSecurity, extractParamsByLocation } from '../utils.js';
 import { prettySchema } from './compact-schema.js';
 
 /**
@@ -23,6 +19,7 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
   const version = spec.info?.version || '';
   const tagGroups = groupPathsByTag(spec);
   const tagOrder = (spec.tags || []).map((t) => t.name);
+  const tagOrderSet = new Set(tagOrder);
   const securitySchemes = spec.components?.securitySchemes;
 
   // Header
@@ -46,6 +43,12 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
       lines.push(`- [${tagName}](#${anchor})`);
     }
   }
+  for (const tag of Object.keys(tagGroups)) {
+    if (!tagOrderSet.has(tag) && tagGroups[tag]?.length > 0) {
+      const anchor = tag.toLowerCase().replace(/\s+/g, '-');
+      lines.push(`- [${tag}](#${anchor})`);
+    }
+  }
   lines.push('');
 
   // Authentication
@@ -54,29 +57,40 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
     lines.push('');
     lines.push('## Authentication');
     lines.push('');
-    if (securitySchemes.bearerAuth) {
-      lines.push('### JWT Bearer Token');
-      lines.push('');
-      lines.push('Used for admin panel access.');
-      lines.push('');
-      lines.push('```');
-      lines.push('Authorization: Bearer <token>');
-      lines.push('```');
-      lines.push('');
-      lines.push('Obtain a token via `POST /auth/login` with email and password.');
-      lines.push('');
-    }
-    if (securitySchemes.apiKeyAuth) {
-      lines.push('### API Key');
-      lines.push('');
-      lines.push('Used for backend-to-backend authentication.');
-      lines.push('');
-      lines.push('```');
-      lines.push('X-API-Key: sk_<appId>_<randomhex>');
-      lines.push('```');
-      lines.push('');
-      lines.push('Create keys via `POST /api-keys`. Each key is scoped to a specific app.');
-      lines.push('');
+    for (const [name, schemeDef] of Object.entries(securitySchemes)) {
+      if (!schemeDef) continue;
+      if (schemeDef.type === 'http' && schemeDef.scheme?.toLowerCase() === 'bearer') {
+        lines.push('### JWT Bearer Token');
+        lines.push('');
+        lines.push('```');
+        lines.push('Authorization: Bearer <token>');
+        lines.push('```');
+        lines.push('');
+      } else if (schemeDef.type === 'apiKey') {
+        const keyName = String(schemeDef.name ?? name);
+        const loc = String(schemeDef.in ?? 'header');
+        lines.push(`### API Key (\`${name}\`)`);
+        lines.push('');
+        lines.push(`Used for backend-to-backend authentication. Key in ${loc}.`);
+        lines.push('');
+        lines.push('```');
+        lines.push(`${keyName}: <key>`);
+        lines.push('```');
+        lines.push('');
+      } else if (schemeDef.type === 'oauth2') {
+        lines.push(`### OAuth2 (\`${name}\`)`);
+        lines.push('');
+        lines.push('OAuth2 authentication flow.');
+        lines.push('');
+      } else if (schemeDef.type === 'http') {
+        const scheme = String(schemeDef.scheme ?? name);
+        lines.push(`### HTTP ${scheme} (\`${name}\`)`);
+        lines.push('');
+        lines.push('```');
+        lines.push(`Authorization: ${scheme} <credentials>`);
+        lines.push('```');
+        lines.push('');
+      }
     }
   }
 
@@ -107,7 +121,7 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
         lines.push('');
       }
 
-      lines.push(`**Auth:** ${formatSecurity(ep.security)}`);
+      lines.push(`**Auth:** ${formatSecurity(ep.security, securitySchemes)}`);
       lines.push('');
 
       // Path params
@@ -118,9 +132,7 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
         lines.push('| Parameter | Type | Description |');
         lines.push('|-----------|------|-------------|');
         for (const p of pathParams) {
-          lines.push(
-            `| \`${p.name}\` | ${p.schema?.type || 'string'} | ${p.description || '-'} |`,
-          );
+          lines.push(`| \`${p.name}\` | ${p.schema?.type || 'string'} | ${p.description || '-'} |`);
         }
         lines.push('');
       }
@@ -169,24 +181,8 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
     renderEndpoints(tagName);
   }
 
-  // Handle untagged endpoints
-  const allTags = new Set(tagOrder);
-  for (const [tag, endpoints] of Object.entries(tagGroups)) {
-    if (allTags.has(tag) || !endpoints || endpoints.length === 0) continue;
-    lines.push('---');
-    lines.push('');
-    lines.push(`## ${tag}`);
-    lines.push('');
-    for (const ep of endpoints) {
-      lines.push(`### \`${ep.method.toUpperCase()}\` ${ep.path}`);
-      lines.push('');
-      if (ep.summary) {
-        lines.push(`**${ep.summary}**`);
-        lines.push('');
-      }
-      lines.push(`**Auth:** ${formatSecurity(ep.security)}`);
-      lines.push('');
-    }
+  for (const tag of Object.keys(tagGroups)) {
+    if (!tagOrderSet.has(tag)) renderEndpoints(tag);
   }
 
   return lines.join('\n');

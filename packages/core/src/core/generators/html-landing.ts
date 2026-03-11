@@ -1,10 +1,5 @@
 import type { OpenAPISpec, EndpointInfo, SwagentOptions } from '../types.js';
-import {
-  escapeHtml,
-  extractFirstParagraph,
-  groupPathsByTag,
-  formatSecurity,
-} from '../utils.js';
+import { escapeHtml, extractFirstParagraph, groupPathsByTag, formatSecurity } from '../utils.js';
 
 /**
  * Generate an AI-First HTML landing page from an OpenAPI spec.
@@ -23,6 +18,11 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   const description = escapeHtml(extractFirstParagraph(spec.info?.description || ''));
   const tagGroups = groupPathsByTag(spec);
   const tagOrder: string[] = (spec.tags || []).map((t) => t.name);
+  const tagSet = new Set(tagOrder);
+  const allTagsOrdered: string[] = [
+    ...tagOrder.filter((t) => tagGroups[t]?.length > 0),
+    ...Object.keys(tagGroups).filter((t) => !tagSet.has(t)),
+  ];
   const securitySchemes = spec.components?.securitySchemes;
   const promptText = `Learn ${baseUrl || 'this API'}`;
 
@@ -32,7 +32,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   }
 
   // Category cards
-  const categoryCards = tagOrder
+  const categoryCards = allTagsOrdered
     .filter((tag) => tagGroups[tag] && tagGroups[tag].length > 0)
     .map((tag) => {
       const tagDef = spec.tags?.find((t) => t.name === tag);
@@ -44,7 +44,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
 
   // Endpoint reference tables
   let endpointListHtml = '';
-  for (const tagName of tagOrder) {
+  for (const tagName of allTagsOrdered) {
     const endpoints = tagGroups[tagName];
     if (!endpoints || endpoints.length === 0) continue;
     const tagDef = spec.tags?.find((t) => t.name === tagName);
@@ -55,7 +55,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
         <thead><tr><th>Method</th><th>Path</th><th>Description</th><th>Auth</th></tr></thead>
         <tbody>`;
     for (const ep of endpoints) {
-      endpointListHtml += `\n          <tr><td><code>${ep.method.toUpperCase()}</code></td><td><code>${escapeHtml(ep.path)}</code></td><td>${escapeHtml(ep.summary)}</td><td>${escapeHtml(formatSecurity(ep.security))}</td></tr>`;
+      endpointListHtml += `\n          <tr><td><code>${ep.method.toUpperCase()}</code></td><td><code>${escapeHtml(ep.path)}</code></td><td>${escapeHtml(ep.summary)}</td><td>${escapeHtml(formatSecurity(ep.security, securitySchemes))}</td></tr>`;
     }
     endpointListHtml += `\n        </tbody>
       </table>
@@ -65,18 +65,38 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   // Auth section
   let authHtml = '';
   if (securitySchemes) {
-    authHtml = `
+    const authRows = Object.entries(securitySchemes)
+      .map(([name, def]) => {
+        if (!def) return '';
+        if (def.type === 'http' && def.scheme?.toLowerCase() === 'bearer') {
+          return '<tr><td><strong>JWT Bearer Token</strong></td><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Obtain via POST /auth/login.</td></tr>';
+        } else if (def.type === 'apiKey') {
+          const keyName = escapeHtml(String(def.name ?? name));
+          const loc = escapeHtml(String(def.in ?? 'header'));
+          return `<tr><td><strong>API Key (${escapeHtml(name)})</strong></td><td><code>${keyName}: &lt;key&gt;</code></td><td>Key in ${loc}.</td></tr>`;
+        } else if (def.type === 'oauth2') {
+          return `<tr><td><strong>OAuth2 (${escapeHtml(name)})</strong></td><td>OAuth2 flow</td><td>See OAuth2 documentation.</td></tr>`;
+        } else if (def.type === 'http') {
+          const scheme = escapeHtml(String(def.scheme ?? name));
+          return `<tr><td><strong>HTTP ${scheme}</strong></td><td><code>Authorization: ${scheme} &lt;credentials&gt;</code></td><td>HTTP auth.</td></tr>`;
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n          ');
+    if (authRows) {
+      authHtml = `
     <section>
       <h2>Authentication</h2>
       <p>This API supports the following authentication methods:</p>
       <table>
         <thead><tr><th>Method</th><th>Header</th><th>Use case</th></tr></thead>
         <tbody>
-          ${securitySchemes.bearerAuth ? '<tr><td><strong>JWT Bearer Token</strong></td><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Admin panel access. Obtain via POST /auth/login.</td></tr>' : ''}
-          ${securitySchemes.apiKeyAuth ? '<tr><td><strong>API Key</strong></td><td><code>X-API-Key: sk_&lt;appId&gt;_&lt;hex&gt;</code></td><td>Backend-to-backend. Create via POST /api-keys.</td></tr>' : ''}
+          ${authRows}
         </tbody>
       </table>
     </section>`;
+    }
   }
 
   // Inline SVG logo (small, optimized for 20px rendering)
@@ -417,7 +437,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   <main>
     <div class="hero">
       <div class="brand">
-        <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(28)} SWAgent</a>
+        <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(28)} SWAGENT</a>
       </div>
       <span class="hero-label">AI-First API Documentation</span>
       <h1>${projectName}</h1>
@@ -433,7 +453,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
         <div class="stat-label">Endpoints</div>
       </div>
       <div class="stat">
-        <div class="stat-value">${tagOrder.length}</div>
+        <div class="stat-value">${allTagsOrdered.length}</div>
         <div class="stat-label">Categories</div>
       </div>
       <div class="stat">
@@ -466,7 +486,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
 
   <footer>
     <p>${projectName} v${version}</p>
-    <p class="powered-by">Powered by <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(16)} SWAgent</a></p>
+    <p class="powered-by">Powered by <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(16)} SWAGENT</a></p>
   </footer>
 </body>
 </html>`;

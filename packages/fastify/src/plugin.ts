@@ -1,6 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import {
+  generate,
+  fallbackOutput,
+  computeEtag,
+  estimateTokens,
+  type SwagentOptions,
+  type OpenAPISpec,
+} from '@swagent/core';
 
 export interface SwagentFastifyOptions extends SwagentOptions {}
 
@@ -15,13 +22,15 @@ async function swagentPlugin(
   let llmsTxtContent = '';
   let humanDocsContent = '';
   let htmlContent = '';
+  let cachedSpec: OpenAPISpec | null = null;
   let etags = { llmsTxt: '', humanDocs: '', htmlLanding: '', openapi: '' };
 
   if (routes.landing !== false) {
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
     fastify.get(landingPath, hiddenSchema, async (request, reply) => {
       const acceptHeader = request.headers['accept'];
-      const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+      const wantsMarkdown =
+        typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
 
       if (wantsMarkdown) {
         const tokens = estimateTokens(llmsTxtContent);
@@ -49,13 +58,14 @@ async function swagentPlugin(
   if (routes.openapi !== false) {
     const openapiPath = typeof routes.openapi === 'string' ? routes.openapi : '/openapi.json';
     fastify.get(openapiPath, hiddenSchema, async (request, reply) => {
-      const spec = (fastify as any).swagger();
       reply.header('etag', etags.openapi);
       reply.header('cache-control', 'public, max-age=3600');
       if (request.headers['if-none-match'] === etags.openapi) {
         return reply.code(304).send();
       }
-      return reply.type('application/json; charset=utf-8').send(spec);
+      return reply
+        .type('application/json; charset=utf-8')
+        .send(cachedSpec ?? (fastify as any).swagger());
     });
   }
 
@@ -86,6 +96,7 @@ async function swagentPlugin(
   fastify.addHook('onReady', async () => {
     try {
       const spec = (fastify as any).swagger() as OpenAPISpec;
+      cachedSpec = spec;
       const output = generate(spec, options);
       llmsTxtContent = output.llmsTxt;
       humanDocsContent = output.humanDocs;

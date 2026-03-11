@@ -1,4 +1,9 @@
-import type { SchemaObject, SecurityRequirement, ParameterObject } from '../types.js';
+import type {
+  SchemaObject,
+  SecurityRequirement,
+  ParameterObject,
+  SecuritySchemes,
+} from '../types.js';
 
 /**
  * Compact schema notation for token-optimized output.
@@ -15,7 +20,7 @@ export function compactSchema(schema: SchemaObject | null, depth: number = 0): s
   // oneOf / anyOf → union notation: `{a, b} | {c, d}`
   if (schema.oneOf || schema.anyOf) {
     const variants = (schema.oneOf || schema.anyOf) as SchemaObject[];
-    return variants.map((v) => compactSchema(v, depth)).join(' | ');
+    return variants.map((v) => compactSchema(v, depth + 1)).join(' | ');
   }
 
   if (schema.type === 'object' || schema.properties) {
@@ -57,10 +62,35 @@ export function compactSchema(schema: SchemaObject | null, depth: number = 0): s
 /**
  * Compact auth notation: JWT, KEY, JWT|KEY, NONE, AUTH
  */
-export function formatSecurityCompact(security: SecurityRequirement[] | undefined): string {
+export function formatSecurityCompact(
+  security: SecurityRequirement[] | undefined,
+  schemes?: SecuritySchemes,
+): string {
   if (!security || security.length === 0) return 'NONE';
-  const hasJwt = security.some((s) => s.bearerAuth !== undefined);
-  const hasKey = security.some((s) => s.apiKeyAuth !== undefined);
+
+  let hasJwt = false;
+  let hasKey = false;
+
+  for (const req of security) {
+    for (const name of Object.keys(req)) {
+      const def = schemes?.[name];
+      if (def?.type === 'http' && def.scheme?.toLowerCase() === 'bearer') {
+        hasJwt = true;
+      } else if (def?.type === 'apiKey') {
+        hasKey = true;
+      } else if (def?.type) {
+        hasJwt = true;
+      } else {
+        const lower = name.toLowerCase();
+        if (lower === 'bearerauth' || lower.includes('bearer') || lower.includes('jwt')) {
+          hasJwt = true;
+        } else if (lower === 'apikeyauth' || lower.includes('apikey')) {
+          hasKey = true;
+        }
+      }
+    }
+  }
+
   if (hasJwt && hasKey) return 'JWT|KEY';
   if (hasJwt) return 'JWT';
   if (hasKey) return 'KEY';
@@ -91,7 +121,7 @@ export function prettySchema(schema: SchemaObject | null, depth: number = 0): st
   // oneOf / anyOf → show variants separated by " | "
   if (schema.oneOf || schema.anyOf) {
     const variants = (schema.oneOf || schema.anyOf) as SchemaObject[];
-    return variants.map((v) => prettySchema(v, depth)).join(' | ');
+    return variants.map((v) => prettySchema(v, depth + 1)).join(' | ');
   }
 
   if (schema.type === 'object' || schema.properties) {

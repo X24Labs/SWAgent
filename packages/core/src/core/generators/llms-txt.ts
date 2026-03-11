@@ -34,13 +34,23 @@ export function generateLlmsTxt(spec: OpenAPISpec, options: SwagentOptions = {})
 
   // Auth methods
   const securitySchemes = spec.components?.securitySchemes;
-  if (securitySchemes) {
+  if (securitySchemes && Object.keys(securitySchemes).length > 0) {
     lines.push('## Auth Methods');
-    if (securitySchemes.bearerAuth) {
-      lines.push('- JWT: `Authorization: Bearer <token>` via POST /auth/login');
-    }
-    if (securitySchemes.apiKeyAuth) {
-      lines.push('- KEY: `X-API-Key: sk_<appId>_<hex>` via POST /api-keys');
+    for (const [name, schemeDef] of Object.entries(securitySchemes)) {
+      if (!schemeDef) continue;
+      if (schemeDef.type === 'http' && schemeDef.scheme?.toLowerCase() === 'bearer') {
+        lines.push('- JWT: `Authorization: Bearer <token>` via POST /auth/login');
+      } else if (schemeDef.type === 'apiKey') {
+        const loc = schemeDef.in ?? 'header';
+        const keyName = schemeDef.name ?? name;
+        lines.push(`- KEY: \`${keyName}: <key>\` (${loc})`);
+      } else if (schemeDef.type === 'oauth2') {
+        lines.push(`- OAuth2: ${name}`);
+      } else if (schemeDef.type === 'http') {
+        lines.push(
+          `- HTTP ${schemeDef.scheme ?? 'auth'}: \`Authorization: ${schemeDef.scheme ?? name} <credentials>\``,
+        );
+      }
     }
     lines.push('');
   }
@@ -65,7 +75,7 @@ export function generateLlmsTxt(spec: OpenAPISpec, options: SwagentOptions = {})
     lines.push('');
 
     for (const ep of endpoints) {
-      const auth = formatSecurityCompact(ep.security);
+      const auth = formatSecurityCompact(ep.security, securitySchemes);
       lines.push(`### ${ep.method.toUpperCase()} ${ep.path} - ${ep.summary} | ${auth}`);
 
       // Path params
@@ -91,13 +101,13 @@ export function generateLlmsTxt(spec: OpenAPISpec, options: SwagentOptions = {})
         lines.push(`Body: \`${compactSchema(ep.body)}\``);
       }
 
-      // Only 200 response (errors covered by conventions)
-      const res200 = ep.responses['200'];
-      if (res200) {
-        const resSchema =
-          (res200 as any).content?.['application/json']?.schema || res200;
-        if (resSchema.type || resSchema.properties) {
-          lines.push(`200: \`${compactSchema(resSchema)}\``);
+      // Only first 2xx response (errors covered by conventions)
+      const firstSuccessKey = Object.keys(ep.responses).find((k) => k.startsWith('2'));
+      if (firstSuccessKey) {
+        const resEntry = ep.responses[firstSuccessKey];
+        const resSchema = (resEntry as any).content?.['application/json']?.schema || resEntry;
+        if ((resSchema as any).type || (resSchema as any).properties) {
+          lines.push(`${firstSuccessKey}: \`${compactSchema(resSchema as any)}\``);
         }
       }
 

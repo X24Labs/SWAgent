@@ -1,5 +1,12 @@
 import Router from '@koa/router';
-import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import {
+  generate,
+  fallbackOutput,
+  computeEtag,
+  estimateTokens,
+  type SwagentOptions,
+  type OpenAPISpec,
+} from '@swagent/core';
 
 export interface SwagentKoaOptions extends SwagentOptions {}
 
@@ -33,7 +40,11 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
         console.error('swagent: failed to generate docs', err);
         const fb = fallbackOutput();
         let openapiEtag: string;
-        try { openapiEtag = computeEtag(JSON.stringify(spec)); } catch { openapiEtag = computeEtag('{}'); }
+        try {
+          openapiEtag = computeEtag(JSON.stringify(spec));
+        } catch {
+          openapiEtag = computeEtag('{}');
+        }
         cached = {
           llmsTxt: fb.llmsTxt,
           humanDocs: fb.humanDocs,
@@ -55,7 +66,8 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
     router.get('swagent-landing', landingPath, (ctx) => {
       const c = getContent();
       const acceptHeader = ctx.get('Accept');
-      const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+      const wantsMarkdown =
+        typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
 
       if (wantsMarkdown) {
         const tokens = estimateTokens(c.llmsTxt);
@@ -93,6 +105,7 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
         ctx.status = 304;
         return;
       }
+      ctx.type = 'application/json; charset=utf-8';
       ctx.body = spec;
     });
   }

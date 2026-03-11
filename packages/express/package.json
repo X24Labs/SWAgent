@@ -49,7 +49,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/X24Labs/SWAgent.git",
+    "url": "https://github.com/X24Labs/SWAGENT.git",
     "directory": "packages/express"
   },
   "homepage": "https://swagent.dev"

@@ -1,17 +1,25 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/X24Labs/SWAgent/main/assets/social-preview.png" alt="SWAgent - AI-first API documentation" width="640">
+  <img src="https://swagent.dev/og.jpg" alt="SWAGENT - AI-first API documentation" width="640">
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/npm/v/@swagent/core?label=npm&color=green" alt="npm version"></a>
-  <a href="https://github.com/X24Labs/SWAgent/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
+  <a href="https://www.npmjs.com/package/@swagent/core"><img src="https://img.shields.io/badge/npm-v0.1.7-green" alt="npm v0.1.7"></a>
+  <a href="https://github.com/X24Labs/SWAGENT/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License MIT"></a>
   <img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/frameworks-7-green" alt="7 frameworks">
   <img src="https://img.shields.io/badge/platform-Node%20%7C%20Bun%20%7C%20Deno-999" alt="platform">
 </p>
 
 <p align="center">
+  API documentation for the agent era.<br>
+  Token-optimized <code>llms.txt</code> for AI agents, full markdown for developers, semantic HTML for browsers.<br>
+  One URL, right format, standard HTTP content negotiation.
+</p>
+
+<p align="center">
+  <a href="https://swagent.dev">swagent.dev</a> &middot;
   <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#html-landing-page">Demo</a> &middot;
   <a href="#frameworks">Frameworks</a> &middot;
   <a href="#cli">CLI</a> &middot;
   <a href="#configuration">Config</a>
@@ -19,19 +27,7 @@
 
 ---
 
-## Why
-
-LLM agents read your docs too. Swagger UI is built for humans clicking through a browser. SWAgent generates three outputs from one OpenAPI spec:
-
-| Output | For | What it is |
-|--------|-----|------------|
-| **`llms.txt`** | AI agents | Token-optimized compact notation, ~60% smaller than raw JSON |
-| **`to-humans.md`** | Developers | Full markdown reference with ToC, parameter tables, response schemas |
-| **`index.html`** | Humans + AI agents | HTML landing for browsers. Send `Accept: text/markdown` and it returns the AI-optimized format directly — no separate URL needed. |
-
-Your API becomes readable by both humans and machines without maintaining separate docs.
-
-### True AI-First: agents just read the URL
+## True AI-First: agents just read the URL
 
 LLM agents don't need to discover `/llms.txt`. The base URL serves the right format automatically:
 
@@ -43,7 +39,39 @@ curl https://api.example.com/
 curl -H "Accept: text/markdown" https://api.example.com/
 ```
 
-When an agent reads your API URL to learn about it, it receives documentation built for machines — compact schemas, minimal tokens, zero noise. No special paths, no discovery step. One URL, right format, standard content negotiation.
+> Tell your AI agent: "Learn https://api.example.com"
+
+No special paths, no discovery step, no configuration. Standard HTTP content negotiation delivers the right format to the right client.
+
+## Why
+
+Your docs are built for humans. LLM agents read them too.
+
+Swagger UI, Redoc, and traditional docs waste thousands of tokens on navigation chrome, repeated schemas, and verbose formatting. Your AI-powered integrations are paying the cost.
+
+SWAGENT transforms your OpenAPI spec into three outputs:
+
+| Output             | For                | What it is                                                                                                        |
+| ------------------ | ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| **`llms.txt`**     | AI agents          | Token-optimized compact notation, ~75% smaller than raw JSON                                                      |
+| **`to-humans.md`** | Developers         | Full markdown reference with ToC, parameter tables, response schemas                                              |
+| **`index.html`**   | Humans + AI agents | Semantic HTML landing for browsers. Send `Accept: text/markdown` and it returns the AI-optimized format directly. |
+
+Your API becomes readable by both humans and machines without maintaining separate docs.
+
+## HTML landing page
+
+SWAGENT generates a zero-dependency semantic HTML landing page for your API — dark theme, categorized endpoints, auth methods, content negotiation built in. No JavaScript, no build step.
+
+<p align="center">
+  <a href="https://api.alloverapps.com">
+    <img src="https://swagent.dev/shopify-app-preview.png" alt="SWAGENT HTML landing page — All Over Apps Admin API" width="720">
+  </a>
+</p>
+
+<p align="center">
+  <em>Live example: <a href="https://api.alloverapps.com">api.alloverapps.com</a></em>
+</p>
 
 ## What llms.txt looks like
 
@@ -149,6 +177,7 @@ npm install @swagent/express
 ```
 
 ```typescript
+import fs from 'fs';
 import express from 'express';
 import { swagentExpress } from '@swagent/express';
 
@@ -170,11 +199,12 @@ npm install @swagent/hono
 ```
 
 ```typescript
+import fs from 'fs';
 import { Hono } from 'hono';
 import { swagentHono } from '@swagent/hono';
 
 const app = new Hono();
-const spec = { /* your OpenAPI spec */ };
+const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
 
 app.route('/', swagentHono(spec, { baseUrl: 'https://api.example.com' }));
 
@@ -189,18 +219,18 @@ npm install @swagent/elysia
 ```
 
 ```typescript
+import fs from 'fs';
 import { Elysia } from 'elysia';
 import { swagentElysia } from '@swagent/elysia';
 
 const app = new Elysia();
-const spec = { /* your OpenAPI spec */ };
+const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
 
 app.use(swagentElysia(spec, { baseUrl: 'https://api.example.com' }));
 
 // Or with a prefix:
 app.use(
-  new Elysia({ prefix: '/docs' })
-    .use(swagentElysia(spec, { baseUrl: 'https://api.example.com' }))
+  new Elysia({ prefix: '/docs' }).use(swagentElysia(spec, { baseUrl: 'https://api.example.com' })),
 );
 ```
 
@@ -213,11 +243,12 @@ npm install @swagent/koa
 ```
 
 ```typescript
+import fs from 'fs';
 import Koa from 'koa';
 import { swagentKoa } from '@swagent/koa';
 
 const app = new Koa();
-const spec = { /* your OpenAPI spec */ };
+const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
 const swagent = swagentKoa(spec, { baseUrl: 'https://api.example.com' });
 
 app.use(swagent.routes());
@@ -239,11 +270,12 @@ npm install @swagent/h3
 ```
 
 ```typescript
+import fs from 'fs';
 import { createApp } from 'h3';
 import { swagentH3 } from '@swagent/h3';
 
 const app = createApp();
-const spec = { /* your OpenAPI spec */ };
+const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
 
 app.use(swagentH3(spec, { baseUrl: 'https://api.example.com' }));
 
@@ -282,10 +314,7 @@ export class AppModule {}
 import { SwagentModule } from '@swagent/nestjs';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
-const config = new DocumentBuilder()
-  .setTitle('My API')
-  .setVersion('1.0')
-  .build();
+const config = new DocumentBuilder().setTitle('My API').setVersion('1.0').build();
 const document = SwaggerModule.createDocument(app, config);
 
 SwaggerModule.setup('api', app, document);
@@ -306,9 +335,9 @@ import { generate } from '@swagent/core';
 const spec = JSON.parse(fs.readFileSync('./openapi.json', 'utf-8'));
 const output = generate(spec, { baseUrl: 'https://api.example.com' });
 
-output.llmsTxt;      // Token-optimized markdown string
-output.humanDocs;    // Full markdown string
-output.htmlLanding;  // Complete HTML string
+output.llmsTxt; // Token-optimized markdown string
+output.humanDocs; // Full markdown string
+output.htmlLanding; // Complete HTML string
 ```
 
 ## CLI
@@ -333,31 +362,31 @@ swagent generate ./spec.json -f html
 swagent generate ./spec.json --watch
 ```
 
-| Flag | Short | Default | Description |
-|------|-------|---------|-------------|
-| `--output-dir` | `-o` | `./docs` | Output directory |
-| `--base-url` | `-b` | from spec | Base URL for generated docs |
-| `--format` | `-f` | `all` | `llms-txt`, `human`, `html`, or `all` |
-| `--title` | `-t` | from spec | Override API title |
-| `--theme` | | `dark` | `dark` or `light` |
-| `--watch` | `-w` | `false` | Watch spec file for changes and regenerate |
+| Flag           | Short | Default   | Description                                |
+| -------------- | ----- | --------- | ------------------------------------------ |
+| `--output-dir` | `-o`  | `./docs`  | Output directory                           |
+| `--base-url`   | `-b`  | from spec | Base URL for generated docs                |
+| `--format`     | `-f`  | `all`     | `llms-txt`, `human`, `html`, or `all`      |
+| `--title`      | `-t`  | from spec | Override API title                         |
+| `--theme`      |       | `dark`    | `dark` or `light`                          |
+| `--watch`      | `-w`  | `false`   | Watch spec file for changes and regenerate |
 
 Outputs: `llms.txt`, `to-humans.md`, `index.html`
 
 ## Token optimization
 
-SWAgent compresses your OpenAPI spec into a compact notation designed to minimize token usage while preserving all the information an LLM agent needs.
+SWAGENT compresses your OpenAPI spec into a compact notation designed to minimize token usage while preserving all the information an LLM agent needs.
 
-| Technique | Example |
-|-----------|---------|
-| Required fields | `name*` instead of `"name": { "required": true }` |
-| Type annotations | `age:number` instead of `"age": { "type": "number" }` |
-| Inline objects | `{id, name, email}` instead of full JSON schema |
-| Auth shorthands | `JWT`, `KEY`, `NONE` instead of full security definitions |
-| Convention dedup | Common errors defined once, not repeated per endpoint |
-| Response focus | Only 200 responses (errors covered by conventions) |
+| Technique        | Example                                                   |
+| ---------------- | --------------------------------------------------------- |
+| Required fields  | `name*` instead of `"name": { "required": true }`         |
+| Type annotations | `age:number` instead of `"age": { "type": "number" }`     |
+| Inline objects   | `{id, name, email}` instead of full JSON schema           |
+| Auth shorthands  | `JWT`, `KEY`, `NONE` instead of full security definitions |
+| Convention dedup | Common errors defined once, not repeated per endpoint     |
+| Response focus   | Only 200 responses (errors covered by conventions)        |
 
-Result: **~60% smaller** than raw OpenAPI JSON, **~50% smaller** than standard markdown docs.
+Result: **~75% smaller** than raw OpenAPI JSON, **~50% smaller** than standard markdown docs.
 
 ## Configuration
 
@@ -400,12 +429,14 @@ app.register(swagentFastify, {
 ### Disable specific routes
 
 ```typescript
-app.use(swagentExpress(spec, {
-  routes: {
-    humanDocs: false,  // Don't serve markdown
-    openapi: false,    // Don't expose raw spec
-  },
-}));
+app.use(
+  swagentExpress(spec, {
+    routes: {
+      humanDocs: false, // Don't serve markdown
+      openapi: false, // Don't expose raw spec
+    },
+  }),
+);
 ```
 
 ## Caching
@@ -443,26 +474,26 @@ If the OpenAPI spec is malformed or generation fails for any reason, all adapter
 
 Every adapter serves the same four routes by default:
 
-| Route | Content-Type | Description |
-|-------|-------------|-------------|
-| `GET /` | `text/html` or `text/markdown` | Landing page (HTML default). Send `Accept: text/markdown` to receive the `llms.txt` content directly. |
-| `GET /llms.txt` | `text/plain` | Compact notation optimized for LLM token budgets |
-| `GET /to-humans.md` | `text/markdown` | Full reference with ToC, parameter tables, schemas |
-| `GET /openapi.json` | `application/json` | Raw OpenAPI spec passthrough |
+| Route               | Content-Type                   | Description                                                                                           |
+| ------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `GET /`             | `text/html` or `text/markdown` | Landing page (HTML default). Send `Accept: text/markdown` to receive the `llms.txt` content directly. |
+| `GET /llms.txt`     | `text/plain`                   | Compact notation optimized for LLM token budgets                                                      |
+| `GET /to-humans.md` | `text/markdown`                | Full reference with ToC, parameter tables, schemas                                                    |
+| `GET /openapi.json` | `application/json`             | Raw OpenAPI spec passthrough                                                                          |
 
 ## Packages
 
-| Package | Description | Peer deps |
-|---------|-------------|-----------|
-| [`@swagent/core`](packages/core) | Generators and types | none |
-| [`@swagent/fastify`](packages/fastify) | Fastify plugin | `fastify >=4` |
-| [`@swagent/express`](packages/express) | Express middleware | `express >=5` |
-| [`@swagent/hono`](packages/hono) | Hono middleware | `hono >=4` |
-| [`@swagent/elysia`](packages/elysia) | Elysia plugin | `elysia >=1.4` |
-| [`@swagent/koa`](packages/koa) | Koa middleware | `koa >=2`, `@koa/router >=12` |
-| [`@swagent/h3`](packages/h3) | h3 middleware | `h3 ^1.13` |
-| [`@swagent/nestjs`](packages/nestjs) | NestJS module | `@nestjs/common >=10`, `@nestjs/core >=10` |
-| [`swagent`](packages/cli) | CLI tool | none |
+| Package                                | Description          | Peer deps                                  |
+| -------------------------------------- | -------------------- | ------------------------------------------ |
+| [`@swagent/core`](packages/core)       | Generators and types | none                                       |
+| [`@swagent/fastify`](packages/fastify) | Fastify plugin       | `fastify >=4`                              |
+| [`@swagent/express`](packages/express) | Express middleware   | `express >=5`                              |
+| [`@swagent/hono`](packages/hono)       | Hono middleware      | `hono >=4`                                 |
+| [`@swagent/elysia`](packages/elysia)   | Elysia plugin        | `elysia >=1.4`                             |
+| [`@swagent/koa`](packages/koa)         | Koa middleware       | `koa >=2`, `@koa/router >=12`              |
+| [`@swagent/h3`](packages/h3)           | h3 middleware        | `h3 ^1.13`                                 |
+| [`@swagent/nestjs`](packages/nestjs)   | NestJS module        | `@nestjs/common >=10`, `@nestjs/core >=10` |
+| [`swagent`](packages/cli)              | CLI tool             | none                                       |
 
 ## Development
 
