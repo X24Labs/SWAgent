@@ -38,6 +38,7 @@ export interface EndpointInfo {
   path: string;
   summary: string;
   description: string;
+  deprecated?: boolean;
   security: SecurityRequirement[] | undefined;
   parameters: ParameterObject[];
   body: SchemaObject | null;
@@ -110,6 +111,7 @@ export interface OpenAPISpec {
 export interface OperationObject {
   summary?: string;
   description?: string;
+  deprecated?: boolean;
   tags?: string[];
   security?: SecurityRequirement[];
   parameters?: ParameterObject[];

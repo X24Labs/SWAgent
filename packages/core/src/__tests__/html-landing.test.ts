@@ -155,7 +155,7 @@ describe('generateHtmlLanding', () => {
     expect(result).toContain('class="method m-post">POST</code>');
     expect(result).toContain('class="ep-path">/auth/login</code>');
     expect(result).toContain('class="ep-summary">Login</span>');
-    expect(result).toMatch(/role="region" aria-label="GET \/pets response"/);
+    expect(result).toMatch(/role="region" aria-label="GET \/pets responses"/);
   });
 
   it('animates endpoint expand/collapse via interpolate-size with reduced-motion fallback', () => {
@@ -212,5 +212,103 @@ describe('generateHtmlLanding', () => {
     expect(result).toContain('id="group-user-accounts"');
     expect(result).toContain('href="#group-busqueda"');
     expect(result).toContain('id="group-busqueda"');
+  });
+
+  it('renders a deprecated badge for endpoints with deprecated=true', () => {
+    const spec = {
+      ...sampleSpec,
+      paths: {
+        '/legacy/widgets': {
+          get: {
+            tags: ['Other'],
+            summary: 'List old widgets',
+            deprecated: true,
+            responses: { '200': { description: 'OK' } },
+          },
+        },
+      },
+    } as typeof sampleSpec;
+    const result = generateHtmlLanding(spec);
+    expect(result).toContain('<span class="badge-deprecated"');
+    expect(result).toContain('>deprecated</span>');
+    expect(result).toContain('details class="endpoint is-deprecated"');
+    // CSS rule for the strike-through is included
+    expect(result).toContain('details.endpoint.is-deprecated .ep-path');
+  });
+
+  it('omits the deprecated badge when the operation is not deprecated', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    // Counts of deprecated markup should be zero on the default sample
+    const matches = result.match(/badge-deprecated/g) || [];
+    // CSS class definitions count once each (badge style + strike-through). No instance markup.
+    expect(matches.length).toBeLessThanOrEqual(2);
+    expect(result).not.toContain('details class="endpoint is-deprecated"');
+  });
+
+  it('renders multi-response tabs when an endpoint declares >1 response with content', () => {
+    const spec = {
+      ...sampleSpec,
+      paths: {
+        '/widgets/{id}': {
+          get: {
+            tags: ['Other'],
+            summary: 'Get widget',
+            responses: {
+              '200': {
+                content: {
+                  'application/json': {
+                    schema: { type: 'object', properties: { id: { type: 'string' } } },
+                  },
+                },
+              },
+              '404': {
+                content: {
+                  'application/json': {
+                    schema: { type: 'object', properties: { error: { type: 'string' } } },
+                  },
+                },
+              },
+              '500': {
+                content: {
+                  'application/json': {
+                    schema: { type: 'object', properties: { error: { type: 'string' } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as typeof sampleSpec;
+    const result = generateHtmlLanding(spec);
+    expect(result).toContain('class="resp-tabs" role="tablist"');
+    expect(result).toContain('class="resp-r resp-r-0"');
+    expect(result).toContain('class="resp-r resp-r-1"');
+    expect(result).toContain('class="resp-r resp-r-2"');
+    // First tab is checked by default
+    expect(result).toMatch(/<input[^>]*class="resp-r resp-r-0"[^>]*\bchecked\b/);
+    // Labels include the status codes with class hints
+    expect(result).toContain('class="resp-label resp-l-0 status-2xx"');
+    expect(result).toContain('class="resp-label resp-l-1 status-4xx"');
+    expect(result).toContain('class="resp-label resp-l-2 status-5xx"');
+    // Each panel renders its own schema
+    expect(result).toMatch(/resp-p resp-p-0[\s\S]*<span class="tk-key">"id"<\/span>/);
+    expect(result).toMatch(/resp-p resp-p-1[\s\S]*<span class="tk-key">"error"<\/span>/);
+  });
+
+  it('keeps the single-panel layout when only one response has content', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    // /pets/{petId} has only a 200 response → no tabs UI for that endpoint
+    expect(result).toContain('aria-label="GET /pets/{petId} responses"');
+    // The /pets/{petId} block should not contain resp-tabs (search inside the block)
+    const block = result.match(/aria-label="GET \/pets\/\{petId\} responses"[\s\S]*?<\/details><\/li>/);
+    expect(block).not.toBeNull();
+    expect(block![0]).not.toContain('resp-tabs');
+  });
+
+  it('includes CSS rules supporting up to 6 response tabs', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    expect(result).toContain('.resp-r-0:checked ~ .resp-panels .resp-p-0');
+    expect(result).toContain('.resp-r-5:checked ~ .resp-panels .resp-p-5');
   });
 });

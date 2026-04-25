@@ -39,6 +39,7 @@ export function groupPathsByTag(spec: OpenAPISpec): Record<string, EndpointInfo[
           path,
           summary: operation.summary || '',
           description: operation.description || '',
+          deprecated: operation.deprecated === true,
           security: (operation.security ?? spec.security) as SecurityRequirement[] | undefined,
           parameters: (operation.parameters || []) as ParameterObject[],
           body:
@@ -122,6 +123,38 @@ export function pickPreviewResponse(
     }
   }
   return null;
+}
+
+/**
+ * Return every response code that carries a content body, sorted with 2xx first
+ * (lowest code first within each class). Used for the multi-response tabs UI.
+ */
+export function pickAllResponses(
+  responses: Record<string, ResponseObject> | undefined,
+): PreviewResponse[] {
+  if (!responses) return [];
+  const out: PreviewResponse[] = [];
+  for (const code of Object.keys(responses)) {
+    const content: Record<string, { schema?: SchemaObject }> | undefined = responses[code]?.content;
+    if (!content) continue;
+    const json = content['application/json'];
+    if (json?.schema) {
+      out.push({ status: code, contentType: 'application/json', schema: json.schema });
+      continue;
+    }
+    const firstType = Object.keys(content)[0];
+    const firstSchema = firstType ? content[firstType]?.schema : undefined;
+    if (firstType && firstSchema) {
+      out.push({ status: code, contentType: firstType, schema: firstSchema });
+    }
+  }
+  out.sort((a, b) => {
+    const aClass = a.status[0];
+    const bClass = b.status[0];
+    if (aClass !== bClass) return aClass.localeCompare(bClass);
+    return a.status.localeCompare(b.status);
+  });
+  return out;
 }
 
 export function tagToSlug(tag: string): string {

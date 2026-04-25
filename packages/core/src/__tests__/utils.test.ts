@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { estimateTokens, pickPreviewResponse, tagToSlug } from '../core/utils.js';
+import {
+  estimateTokens,
+  pickAllResponses,
+  pickPreviewResponse,
+  tagToSlug,
+} from '../core/utils.js';
 
 describe('estimateTokens', () => {
   it('returns 0 for empty string', () => {
@@ -102,5 +107,55 @@ describe('pickPreviewResponse', () => {
       '200': { content: { 'application/json': { schema: { type: 'object' } } } },
     });
     expect(result?.status).toBe('200');
+  });
+});
+
+describe('pickAllResponses', () => {
+  it('returns empty when responses is undefined or empty', () => {
+    expect(pickAllResponses(undefined)).toEqual([]);
+    expect(pickAllResponses({})).toEqual([]);
+  });
+
+  it('skips responses without a content body', () => {
+    expect(
+      pickAllResponses({
+        '200': { description: 'OK' },
+        '404': { description: 'Not found' },
+      }),
+    ).toEqual([]);
+  });
+
+  it('returns 2xx codes before 4xx and 5xx', () => {
+    const out = pickAllResponses({
+      '500': { content: { 'application/json': { schema: { type: 'object' } } } },
+      '400': { content: { 'application/json': { schema: { type: 'object' } } } },
+      '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+    });
+    expect(out.map((r) => r.status)).toEqual(['200', '400', '500']);
+  });
+
+  it('sorts ascending within the same status class', () => {
+    const out = pickAllResponses({
+      '202': { content: { 'application/json': { schema: { type: 'object' } } } },
+      '201': { content: { 'application/json': { schema: { type: 'object' } } } },
+      '200': { content: { 'application/json': { schema: { type: 'object' } } } },
+    });
+    expect(out.map((r) => r.status)).toEqual(['200', '201', '202']);
+  });
+
+  it('prefers application/json then falls back to first content type', () => {
+    const out = pickAllResponses({
+      '200': {
+        content: {
+          'text/plain': { schema: { type: 'string' } },
+          'application/json': { schema: { type: 'object' } },
+        },
+      },
+      '400': {
+        content: { 'text/plain': { schema: { type: 'string' } } },
+      },
+    });
+    expect(out[0].contentType).toBe('application/json');
+    expect(out[1].contentType).toBe('text/plain');
   });
 });

@@ -4,7 +4,7 @@ import {
   extractFirstParagraph,
   groupPathsByTag,
   formatSecurity,
-  pickPreviewResponse,
+  pickAllResponses,
   tagToSlug,
 } from '../utils.js';
 import { schemaToJsonHtml } from './compact-schema.js';
@@ -491,6 +491,69 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       color: var(--text-muted);
       font-style: italic;
     }
+    .badge-deprecated {
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      background: #2a1818;
+      color: #fca5a5;
+      border: 1px solid #4a1f1f;
+      flex-shrink: 0;
+    }
+    details.endpoint.is-deprecated .ep-path {
+      text-decoration: line-through;
+      text-decoration-color: rgba(252, 165, 165, 0.5);
+      opacity: 0.85;
+    }
+
+    /* Multi-response tabs (CSS-only, scopes via radio name per endpoint) */
+    .resp-tabs > .resp-r { position: absolute; opacity: 0; pointer-events: none; }
+    .resp-labels {
+      display: flex;
+      gap: 0.3rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .resp-label {
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      border-radius: 4px;
+      cursor: pointer;
+      background: var(--surface-2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      user-select: none;
+    }
+    .resp-label:hover { color: var(--text); border-color: rgba(129, 140, 248, 0.3); }
+    .resp-label.status-2xx { color: #86efac; }
+    .resp-label.status-4xx { color: #fcd34d; }
+    .resp-label.status-5xx { color: #fca5a5; }
+    .resp-p { display: none; }
+    .resp-r-0:checked ~ .resp-panels .resp-p-0,
+    .resp-r-1:checked ~ .resp-panels .resp-p-1,
+    .resp-r-2:checked ~ .resp-panels .resp-p-2,
+    .resp-r-3:checked ~ .resp-panels .resp-p-3,
+    .resp-r-4:checked ~ .resp-panels .resp-p-4,
+    .resp-r-5:checked ~ .resp-panels .resp-p-5 { display: block; }
+    .resp-r-0:checked ~ .resp-labels .resp-l-0,
+    .resp-r-1:checked ~ .resp-labels .resp-l-1,
+    .resp-r-2:checked ~ .resp-labels .resp-l-2,
+    .resp-r-3:checked ~ .resp-labels .resp-l-3,
+    .resp-r-4:checked ~ .resp-labels .resp-l-4,
+    .resp-r-5:checked ~ .resp-labels .resp-l-5 {
+      background: var(--accent-glow);
+      border-color: rgba(129, 140, 248, 0.4);
+      color: var(--text);
+    }
+    .resp-r:focus-visible + .resp-labels .resp-label,
+    .resp-r:focus-visible ~ .resp-labels .resp-label {
+      /* generic focus ring inherited from label hover; user keyboard hint */
+    }
     pre.response {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -666,33 +729,81 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   return html;
 }
 
+function endpointUid(ep: EndpointInfo): string {
+  const path = ep.path.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `e-${ep.method.toLowerCase()}-${path}`;
+}
+
 function renderEndpoint(ep: EndpointInfo, securitySchemes: SecuritySchemes | undefined): string {
   const method = ep.method.toUpperCase();
   const methodClass = `m-${ep.method.toLowerCase()}`;
   const pathEsc = escapeHtml(ep.path);
   const summaryEsc = escapeHtml(ep.summary);
   const auth = escapeHtml(formatSecurity(ep.security, securitySchemes));
-  const preview = pickPreviewResponse(ep.responses);
+  const responses = pickAllResponses(ep.responses);
+  const uid = endpointUid(ep);
+  const deprecated = ep.deprecated === true;
+  const deprecatedClass = deprecated ? ' is-deprecated' : '';
+  const deprecatedBadge = deprecated
+    ? `<span class="badge-deprecated" title="This endpoint is deprecated">deprecated</span>`
+    : '';
 
   let body: string;
-  if (preview) {
-    const status = escapeHtml(preview.status);
-    const ct = escapeHtml(preview.contentType);
-    body = `<div class="response-meta"><span class="status">${status}</span> <span class="ct">${ct}</span></div>
-            <pre class="response"><code>${schemaToJsonHtml(preview.schema)}</code></pre>`;
-  } else {
+  if (responses.length === 0) {
     body = `<div class="response-empty">No response body</div>`;
+  } else if (responses.length === 1) {
+    const r = responses[0];
+    body = `<div class="response-meta"><span class="status">${escapeHtml(r.status)}</span> <span class="ct">${escapeHtml(r.contentType)}</span></div>
+            <pre class="response"><code>${schemaToJsonHtml(r.schema)}</code></pre>`;
+  } else {
+    const tabs = responses.slice(0, 6); // CSS rules support up to 6 indices
+    const inputs = tabs
+      .map(
+        (_, i) =>
+          `<input type="radio" class="resp-r resp-r-${i}" name="${uid}-resp" id="${uid}-r-${i}"${i === 0 ? ' checked' : ''}>`,
+      )
+      .join('');
+    const labels = tabs
+      .map(
+        (r, i) =>
+          `<label for="${uid}-r-${i}" class="resp-label resp-l-${i} ${statusClass(r.status)}">${escapeHtml(r.status)}</label>`,
+      )
+      .join('');
+    const panels = tabs
+      .map(
+        (r, i) =>
+          `<div class="resp-p resp-p-${i}">
+              <div class="response-meta"><span class="status">${escapeHtml(r.status)}</span> <span class="ct">${escapeHtml(r.contentType)}</span></div>
+              <pre class="response"><code>${schemaToJsonHtml(r.schema)}</code></pre>
+            </div>`,
+      )
+      .join('');
+    body = `<div class="resp-tabs" role="tablist">
+              ${inputs}
+              <div class="resp-labels">${labels}</div>
+              <div class="resp-panels">${panels}</div>
+            </div>`;
   }
 
-  return `\n        <li><details class="endpoint">
+  return `\n        <li><details class="endpoint${deprecatedClass}">
           <summary>
             <code class="method ${methodClass}">${method}</code>
             <code class="ep-path">${pathEsc}</code>
             <span class="ep-summary">${summaryEsc}</span>
+            ${deprecatedBadge}
             <span class="ep-auth">${auth}</span>
           </summary>
-          <div class="endpoint-body" role="region" aria-label="${method} ${pathEsc} response">
+          <div class="endpoint-body" role="region" aria-label="${method} ${pathEsc} responses">
             ${body}
           </div>
         </details></li>`;
+}
+
+function statusClass(status: string): string {
+  const c = status[0];
+  if (c === '2') return 'status-2xx';
+  if (c === '3') return 'status-3xx';
+  if (c === '4') return 'status-4xx';
+  if (c === '5') return 'status-5xx';
+  return '';
 }
