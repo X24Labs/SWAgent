@@ -441,13 +441,14 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       min-width: 3.4rem;
       text-align: center;
       flex-shrink: 0;
-      color: #fff;
+      background: #1c1c20;
+      color: #a1a1aa;
     }
-    .m-get    { background: #2563eb; }
-    .m-post   { background: #16a34a; }
-    .m-put    { background: #d97706; }
-    .m-patch  { background: #9333ea; }
-    .m-delete { background: #dc2626; }
+    .m-get    { background: #1a2332; color: #93c5fd; }
+    .m-post   { background: #16241b; color: #86efac; }
+    .m-put    { background: #251c12; color: #fcd34d; }
+    .m-patch  { background: #1f1727; color: #d8b4fe; }
+    .m-delete { background: #2a1818; color: #fca5a5; }
     .ep-path {
       font-family: "SF Mono", "Fira Code", monospace;
       font-size: 0.82rem;
