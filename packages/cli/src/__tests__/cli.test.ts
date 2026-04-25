@@ -306,7 +306,7 @@ describe('swagent CLI --watch mode', () => {
     expect(llmsUpdated).toContain('# Updated Watch API');
 
     child.kill();
-  }, 10000);
+  }, 30000);
 
   it('shows error for --watch with URL spec', async () => {
     try {

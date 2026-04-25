@@ -5,3 +5,5 @@
 {"v":1,"job":"test:unit","status":"passed","agent":"claude","attempts":1,"errorFirstLine":null,"branch":"main","commitSha":null,"runs":6,"firstAt":"2026-04-25T00:46:37.117Z","lastAt":"2026-04-25T01:51:54.997Z"}
 {"v":1,"job":"typecheck","status":"fixed","agent":"claude","attempts":2,"errorFirstLine":null,"branch":"feature/26-expand-collapse-responses","commitSha":null,"runs":2,"firstAt":"2026-04-25T01:51:54.997Z","lastAt":"2026-04-25T01:57:15.924Z"}
 {"v":1,"job":"test:unit","status":"fixed","agent":"claude","attempts":2,"errorFirstLine":null,"branch":"feature/26-expand-collapse-responses","commitSha":null,"runs":1,"firstAt":"2026-04-25T01:57:15.924Z","lastAt":"2026-04-25T01:57:15.924Z"}
+{"v":1,"job":"test:unit","status":"passed","agent":"claude","attempts":1,"errorFirstLine":null,"branch":"feature/26-expand-collapse-responses","commitSha":null,"runs":1,"firstAt":"2026-04-25T02:08:22.128Z","lastAt":"2026-04-25T02:08:22.128Z"}
+{"v":1,"job":"test:unit","status":"fixed","agent":"claude","attempts":2,"errorFirstLine":null,"branch":"feature/28-endpoint-panel-extras","commitSha":null,"runs":1,"firstAt":"2026-04-25T02:38:51.348Z","lastAt":"2026-04-25T02:38:51.348Z"}

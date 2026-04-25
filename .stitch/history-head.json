@@ -10,9 +10,9 @@
       "errorFirstLine": null,
       "branch": "release/v.0.1.8",
       "commitSha": null,
-      "runs": 4,
+      "runs": 6,
       "firstAt": "2026-04-25T01:43:52.695Z",
-      "lastAt": "2026-04-25T02:08:22.128Z"
+      "lastAt": "2026-04-25T02:40:06.857Z"
     },
     "typecheck": {
       "v": 1,
@@ -23,9 +23,9 @@
       "errorFirstLine": null,
       "branch": "feature/26-expand-collapse-responses",
       "commitSha": null,
-      "runs": 1,
+      "runs": 3,
       "firstAt": "2026-04-25T02:08:22.128Z",
-      "lastAt": "2026-04-25T02:08:22.128Z"
+      "lastAt": "2026-04-25T02:40:06.857Z"
     },
     "test:unit": {
       "v": 1,
@@ -34,11 +34,11 @@
       "agent": "claude",
       "attempts": 1,
       "errorFirstLine": null,
-      "branch": "feature/26-expand-collapse-responses",
+      "branch": "feature/28-endpoint-panel-extras",
       "commitSha": null,
       "runs": 1,
-      "firstAt": "2026-04-25T02:08:22.128Z",
-      "lastAt": "2026-04-25T02:08:22.128Z"
+      "firstAt": "2026-04-25T02:40:06.857Z",
+      "lastAt": "2026-04-25T02:40:06.857Z"
     },
     "test:integration": {
       "v": 1,
@@ -49,9 +49,9 @@
       "errorFirstLine": null,
       "branch": "main",
       "commitSha": null,
-      "runs": 8,
+      "runs": 10,
       "firstAt": "2026-04-25T00:46:37.117Z",
-      "lastAt": "2026-04-25T02:08:22.128Z"
+      "lastAt": "2026-04-25T02:40:06.857Z"
     }
   }
 }
