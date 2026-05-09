@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   estimateTokens,
+  groupPathsByTag,
   pickAllResponses,
   pickPreviewResponse,
   tagToSlug,
 } from '../core/utils.js';
+import type { OpenAPISpec } from '../core/types.js';
 
 describe('estimateTokens', () => {
   it('returns 0 for empty string', () => {
@@ -157,5 +159,44 @@ describe('pickAllResponses', () => {
     });
     expect(out[0].contentType).toBe('application/json');
     expect(out[1].contentType).toBe('text/plain');
+  });
+});
+
+describe('groupPathsByTag — sort order', () => {
+  const spec: OpenAPISpec = {
+    info: { title: 'X', version: '1' },
+    tags: [{ name: 'Zeta' }, { name: 'Alpha' }, { name: 'Mike' }],
+    paths: {
+      '/zeta/two': { get: { tags: ['Zeta'] } },
+      '/zeta/one': { post: { tags: ['Zeta'] }, get: { tags: ['Zeta'] } },
+      '/alpha': { get: { tags: ['Alpha'] } },
+      '/mike': { put: { tags: ['Mike'] } },
+    },
+  };
+
+  it('returns groups alphabetically (case-insensitive)', () => {
+    const out = groupPathsByTag(spec);
+    expect(Object.keys(out)).toEqual(['Alpha', 'Mike', 'Zeta']);
+  });
+
+  it('sorts endpoints by path then method (GET, POST, PUT, PATCH, DELETE)', () => {
+    const out = groupPathsByTag(spec);
+    const zeta = out['Zeta'].map((e) => `${e.method.toUpperCase()} ${e.path}`);
+    expect(zeta).toEqual(['GET /zeta/one', 'POST /zeta/one', 'GET /zeta/two']);
+  });
+
+  it('places endpoints with no tag under "Other"', () => {
+    const noTags: OpenAPISpec = {
+      info: { title: 'X', version: '1' },
+      paths: { '/foo': { get: {} } },
+    };
+    const out = groupPathsByTag(noTags);
+    expect(Object.keys(out)).toEqual(['Other']);
+  });
+
+  it('sort is stable across calls (deterministic anchor links)', () => {
+    const a = Object.keys(groupPathsByTag(spec));
+    const b = Object.keys(groupPathsByTag(spec));
+    expect(a).toEqual(b);
   });
 });

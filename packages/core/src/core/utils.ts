@@ -9,6 +9,7 @@ import type {
 } from './types.js';
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
+const METHOD_ORDER: Record<string, number> = { get: 0, post: 1, put: 2, patch: 3, delete: 4 };
 
 export function escapeHtml(text: string): string {
   return text
@@ -22,6 +23,14 @@ export function extractFirstParagraph(text: string): string {
   return text.split(/\n\n/)[0].replace(/\n/g, ' ').trim();
 }
 
+/**
+ * Group endpoints by tag.
+ *
+ * Groups are returned alphabetically (case-insensitive). Endpoints inside each
+ * group are sorted by path, then by HTTP method (GET, POST, PUT, PATCH, DELETE).
+ * Stable order makes long docs predictable to scan and keeps anchor links stable
+ * across spec changes.
+ */
 export function groupPathsByTag(spec: OpenAPISpec): Record<string, EndpointInfo[]> {
   const groups: Record<string, EndpointInfo[]> = {};
 
@@ -52,7 +61,21 @@ export function groupPathsByTag(spec: OpenAPISpec): Record<string, EndpointInfo[
     }
   }
 
-  return groups;
+  for (const tag of Object.keys(groups)) {
+    groups[tag].sort((a, b) => {
+      const byPath = a.path.localeCompare(b.path);
+      if (byPath !== 0) return byPath;
+      return (METHOD_ORDER[a.method] ?? 99) - (METHOD_ORDER[b.method] ?? 99);
+    });
+  }
+
+  const sorted: Record<string, EndpointInfo[]> = {};
+  for (const tag of Object.keys(groups).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  )) {
+    sorted[tag] = groups[tag];
+  }
+  return sorted;
 }
 
 export function formatSecurity(

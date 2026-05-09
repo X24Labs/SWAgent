@@ -18,8 +18,8 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
   const description = spec.info?.description || '';
   const version = spec.info?.version || '';
   const tagGroups = groupPathsByTag(spec);
-  const tagOrder = (spec.tags || []).map((t) => t.name);
-  const tagOrderSet = new Set(tagOrder);
+  // groupPathsByTag returns tags sorted A-Z; iterate that order.
+  const tagOrder = Object.keys(tagGroups);
   const securitySchemes = spec.components?.securitySchemes;
 
   // Header
@@ -41,12 +41,6 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
     if (tagGroups[tagName]?.length > 0) {
       const anchor = tagName.toLowerCase().replace(/\s+/g, '-');
       lines.push(`- [${tagName}](#${anchor})`);
-    }
-  }
-  for (const tag of Object.keys(tagGroups)) {
-    if (!tagOrderSet.has(tag) && tagGroups[tag]?.length > 0) {
-      const anchor = tag.toLowerCase().replace(/\s+/g, '-');
-      lines.push(`- [${tag}](#${anchor})`);
     }
   }
   lines.push('');
@@ -179,10 +173,6 @@ export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {
 
   for (const tagName of tagOrder) {
     renderEndpoints(tagName);
-  }
-
-  for (const tag of Object.keys(tagGroups)) {
-    if (!tagOrderSet.has(tag)) renderEndpoints(tag);
   }
 
   return lines.join('\n');

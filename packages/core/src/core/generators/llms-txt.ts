@@ -18,7 +18,8 @@ export function generateLlmsTxt(spec: OpenAPISpec, options: SwagentOptions = {})
   const baseUrl = options.baseUrl || spec.servers?.[0]?.url || '';
   const description = extractFirstParagraph(spec.info?.description || '');
   const tagGroups = groupPathsByTag(spec);
-  const tagOrder = (spec.tags || []).map((t) => t.name);
+  // groupPathsByTag returns tags sorted A-Z; iterate that order.
+  const tagOrder = Object.keys(tagGroups);
 
   // Header
   lines.push(`# ${projectName}`);
@@ -117,12 +118,6 @@ export function generateLlmsTxt(spec: OpenAPISpec, options: SwagentOptions = {})
 
   for (const tagName of tagOrder) {
     processTag(tagName);
-  }
-
-  // Handle untagged endpoints
-  const allTags = new Set(tagOrder);
-  for (const tag of Object.keys(tagGroups)) {
-    if (!allTags.has(tag)) processTag(tag);
   }
 
   return lines.join('\n');

@@ -325,3 +325,43 @@ describe('generateHtmlLanding', () => {
     expect(result).toContain('.resp-r-5:checked ~ .resp-panels .resp-p-5');
   });
 });
+
+describe('sticky top nav', () => {
+  it('includes a topnav element with sticky positioning CSS', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    expect(result).toContain('class="topnav"');
+    expect(result).toContain('position: sticky');
+    expect(result).toContain('aria-label="API sections"');
+  });
+
+  it('renders one chip per group with anchor link', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    expect(result).toContain('class="topnav-chip" href="#group-pets"');
+    expect(result).toContain('class="topnav-chip" href="#group-auth"');
+  });
+
+  it('chip includes a numeric endpoint count', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    expect(result).toMatch(/href="#group-auth">Auth<span class="topnav-chip-count">\d+<\/span>/);
+    expect(result).toMatch(/href="#group-pets">Pets<span class="topnav-chip-count">\d+<\/span>/);
+  });
+
+  it('orders chips alphabetically (Auth before Pets)', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    const authIdx = result.indexOf('href="#group-auth"');
+    const petsIdx = result.indexOf('href="#group-pets"');
+    expect(authIdx).toBeGreaterThan(0);
+    expect(petsIdx).toBeGreaterThan(authIdx);
+  });
+
+  it('omits topnav entirely when there are no groups', () => {
+    const result = generateHtmlLanding(emptySpec);
+    expect(result).not.toContain('class="topnav"');
+  });
+
+  it('topnav-brand links to #top anchor', () => {
+    const result = generateHtmlLanding(sampleSpec);
+    expect(result).toContain('href="#top"');
+    expect(result).toContain('id="top"');
+  });
+});

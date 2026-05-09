@@ -26,12 +26,10 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   const baseUrl = options.baseUrl || spec.servers?.[0]?.url || '';
   const description = escapeHtml(extractFirstParagraph(spec.info?.description || ''));
   const tagGroups = groupPathsByTag(spec);
-  const tagOrder: string[] = (spec.tags || []).map((t) => t.name);
-  const tagSet = new Set(tagOrder);
-  const allTagsOrdered: string[] = [
-    ...tagOrder.filter((t) => tagGroups[t]?.length > 0),
-    ...Object.keys(tagGroups).filter((t) => !tagSet.has(t)),
-  ];
+  // groupPathsByTag returns tags sorted A-Z; iterate that order.
+  const allTagsOrdered: string[] = Object.keys(tagGroups).filter(
+    (t) => tagGroups[t]?.length > 0,
+  );
   const securitySchemes = spec.components?.securitySchemes;
   const promptText = `Learn ${baseUrl || 'this API'}`;
 
@@ -39,6 +37,25 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   for (const endpoints of Object.values(tagGroups)) {
     totalEndpoints += (endpoints as EndpointInfo[]).length;
   }
+
+  // Sticky top nav: one chip per group, jumps to its section anchor.
+  const topNavChips = allTagsOrdered
+    .filter((tag) => tagGroups[tag] && tagGroups[tag].length > 0)
+    .map((tag) => {
+      const slug = tagToSlug(tag);
+      const tagEsc = escapeHtml(tag);
+      const count = tagGroups[tag].length;
+      return `<a class="topnav-chip" href="#group-${slug}">${tagEsc}<span class="topnav-chip-count">${count}</span></a>`;
+    })
+    .join('');
+  const topNavHtml = topNavChips
+    ? `\n  <nav class="topnav" aria-label="API sections">
+    <div class="topnav-inner">
+      <a class="topnav-brand" href="#top">${escapeHtml(options.title || spec.info?.title || 'API')}</a>
+      <div class="topnav-chips">${topNavChips}</div>
+    </div>
+  </nav>`
+    : '';
 
   // Category cards (each links to the corresponding endpoint section below)
   const categoryCards = allTagsOrdered
@@ -152,6 +169,71 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
       color: var(--text);
       line-height: 1.6;
       min-height: 100vh;
+    }
+
+    /* Sticky top nav with group quick-jump chips */
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(9, 9, 11, 0.85);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topnav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0.55rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .topnav-inner::-webkit-scrollbar { display: none; }
+    .topnav-brand {
+      flex-shrink: 0;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      padding-right: 0.75rem;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .topnav-chips {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .topnav-chip {
+      flex-shrink: 0;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 0.3rem 0.7rem;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      transition: color .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .topnav-chip:hover {
+      color: var(--text);
+      background: var(--surface);
+      border-color: var(--border);
+    }
+    .topnav-chip-count {
+      margin-left: 0.35rem;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      opacity: 0.7;
+    }
+    @media (max-width: 640px) {
+      .topnav-inner { padding: 0.5rem 1rem; }
+      .topnav-brand { display: none; }
     }
 
     /* Hero */
@@ -680,8 +762,9 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
     }
   </style>
 </head>
-<body>
+<body>${topNavHtml}
   <main>
+    <a id="top" tabindex="-1"></a>
     <div class="hero">
       <div class="brand">
         <a href="https://swagent.dev" target="_blank" rel="noopener">${logoSvg(28)} SWAGENT</a>
