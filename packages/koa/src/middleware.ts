@@ -4,15 +4,53 @@ import {
   fallbackOutput,
   computeEtag,
   estimateTokens,
+  resolveAuth,
+  isAuthorized,
+  safeEqual,
+  parseCookies,
+  parseFormBody,
+  buildSessionCookie,
+  renderLoginForm,
+  renderUnauthorized,
+  type AuthRequest,
+  type ResolvedAuth,
   type SwagentOptions,
   type OpenAPISpec,
 } from '@swagent/core';
 
 export interface SwagentKoaOptions extends SwagentOptions {}
 
+function toAuthRequest(ctx: any): AuthRequest {
+  return {
+    query: ctx.query as Record<string, string | string[] | undefined>,
+    headers: ctx.request.headers as Record<string, string | string[] | undefined>,
+    cookies: parseCookies(ctx.get('Cookie')),
+  };
+}
+
+function gateData(ctx: any, auth: ResolvedAuth): boolean {
+  if (isAuthorized(toAuthRequest(ctx), auth)) return true;
+  ctx.status = 401;
+  ctx.set('Cache-Control', 'no-store');
+  ctx.type = 'text/plain; charset=utf-8';
+  ctx.body = renderUnauthorized(auth);
+  return false;
+}
+
+async function readRawBody(ctx: any): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    ctx.req.setEncoding('utf8');
+    ctx.req.on('data', (chunk: string) => { data += chunk; });
+    ctx.req.on('end', () => resolve(data));
+    ctx.req.on('error', reject);
+  });
+}
+
 export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): Router {
   const router = new Router();
   const routes = options.routes || {};
+  const auth = resolveAuth(options.auth);
 
   let cached: {
     llmsTxt: string;
@@ -61,13 +99,33 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
     return cached;
   }
 
+  function loginTitle(): string {
+    return options.title ?? spec.info?.title ?? 'API Documentation';
+  }
+
   if (routes.landing !== false) {
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
+
     router.get('swagent-landing', landingPath, (ctx) => {
       const c = getContent();
       const acceptHeader = ctx.get('Accept');
       const wantsMarkdown =
         typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+      if (auth.enabled && !isAuthorized(toAuthRequest(ctx), auth)) {
+        if (wantsMarkdown) {
+          ctx.status = 401;
+          ctx.set('Cache-Control', 'no-store');
+          ctx.type = 'text/plain; charset=utf-8';
+          ctx.body = renderUnauthorized(auth);
+          return;
+        }
+        ctx.status = 401;
+        ctx.set('Cache-Control', 'no-store');
+        ctx.type = 'text/html; charset=utf-8';
+        ctx.body = renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+        return;
+      }
 
       if (wantsMarkdown) {
         const tokens = estimateTokens(c.llmsTxt);
@@ -93,11 +151,39 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
         ctx.body = c.htmlLanding;
       }
     });
+
+    if (auth.enabled) {
+      router.post('swagent-landing-post', landingPath, async (ctx) => {
+        const ctype = String(ctx.get('Content-Type') ?? '');
+        let submitted = '';
+        const preParsed = (ctx.request as any).body;
+        if (preParsed && typeof preParsed === 'object') {
+          submitted = String(preParsed[auth.formField] ?? '');
+        } else if (ctype.includes('application/x-www-form-urlencoded')) {
+          submitted = parseFormBody(await readRawBody(ctx))[auth.formField] ?? '';
+        }
+
+        if (!submitted || !safeEqual(submitted, auth.token)) {
+          ctx.status = 401;
+          ctx.set('Cache-Control', 'no-store');
+          ctx.type = 'text/html; charset=utf-8';
+          ctx.body = renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+          return;
+        }
+
+        ctx.status = 303;
+        ctx.set('Set-Cookie', buildSessionCookie(auth));
+        ctx.set('Location', landingPath);
+        ctx.set('Cache-Control', 'no-store');
+        ctx.body = '';
+      });
+    }
   }
 
   if (routes.openapi !== false) {
     const openapiPath = typeof routes.openapi === 'string' ? routes.openapi : '/openapi.json';
     router.get('swagent-openapi', openapiPath, (ctx) => {
+      if (auth.enabled && !gateData(ctx, auth)) return;
       const c = getContent();
       ctx.set('ETag', c.etags.openapi);
       ctx.set('Cache-Control', 'public, max-age=3600');
@@ -113,6 +199,7 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
   if (routes.llmsTxt !== false) {
     const llmsPath = typeof routes.llmsTxt === 'string' ? routes.llmsTxt : '/llms.txt';
     router.get('swagent-llms', llmsPath, (ctx) => {
+      if (auth.enabled && !gateData(ctx, auth)) return;
       const c = getContent();
       ctx.set('ETag', c.etags.llmsTxt);
       ctx.set('Cache-Control', 'public, max-age=3600');
@@ -128,6 +215,7 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
   if (routes.humanDocs !== false) {
     const humanPath = typeof routes.humanDocs === 'string' ? routes.humanDocs : '/to-humans.md';
     router.get('swagent-human', humanPath, (ctx) => {
+      if (auth.enabled && !gateData(ctx, auth)) return;
       const c = getContent();
       ctx.set('ETag', c.etags.humanDocs);
       ctx.set('Cache-Control', 'public, max-age=3600');

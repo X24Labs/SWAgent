@@ -1,12 +1,54 @@
-import { createRouter, defineEventHandler, setResponseHeader, getRequestHeader } from 'h3';
+import {
+  createRouter,
+  defineEventHandler,
+  setResponseHeader,
+  setResponseStatus,
+  getRequestHeader,
+  getQuery,
+  readRawBody,
+  type H3Event,
+} from 'h3';
 import type { Router } from 'h3';
-import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import {
+  generate,
+  fallbackOutput,
+  computeEtag,
+  estimateTokens,
+  resolveAuth,
+  isAuthorized,
+  safeEqual,
+  parseCookies,
+  parseFormBody,
+  buildSessionCookie,
+  renderLoginForm,
+  renderUnauthorized,
+  type AuthRequest,
+  type ResolvedAuth,
+  type SwagentOptions,
+  type OpenAPISpec,
+} from '@swagent/core';
 
 export interface SwagentH3Options extends SwagentOptions {}
+
+function toAuthRequest(event: H3Event): AuthRequest {
+  return {
+    query: getQuery(event) as Record<string, string | string[] | undefined>,
+    headers: event.node.req.headers as Record<string, string | string[] | undefined>,
+    cookies: parseCookies(getRequestHeader(event, 'cookie')),
+  };
+}
+
+function unauthorizedData(event: H3Event, auth: ResolvedAuth): string {
+  setResponseStatus(event, 401);
+  setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8');
+  setResponseHeader(event, 'cache-control', 'no-store');
+  return renderUnauthorized(auth);
+}
 
 export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Router {
   const router = createRouter();
   const routes = options.routes || {};
+  const auth = resolveAuth(options.auth);
 
   let cached: {
     llmsTxt: string;
@@ -51,14 +93,27 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     return cached;
   }
 
+  function loginTitle(): string {
+    return options.title ?? spec.info?.title ?? 'API Documentation';
+  }
+
   if (routes.landing !== false) {
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
+
     router.get(
       landingPath,
       defineEventHandler((event) => {
         const c = getContent();
         const acceptHeader = getRequestHeader(event, 'accept');
         const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+        if (auth.enabled && !isAuthorized(toAuthRequest(event), auth)) {
+          if (wantsMarkdown) return unauthorizedData(event, auth);
+          setResponseStatus(event, 401);
+          setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
+          setResponseHeader(event, 'cache-control', 'no-store');
+          return renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+        }
 
         if (wantsMarkdown) {
           const tokens = estimateTokens(c.llmsTxt);
@@ -85,6 +140,33 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
         }
       }),
     );
+
+    if (auth.enabled) {
+      router.post(
+        landingPath,
+        defineEventHandler(async (event) => {
+          const ctype = getRequestHeader(event, 'content-type') ?? '';
+          let submitted = '';
+          if (ctype.includes('application/x-www-form-urlencoded')) {
+            const raw = (await readRawBody(event, 'utf8')) ?? '';
+            submitted = parseFormBody(raw)[auth.formField] ?? '';
+          }
+
+          if (!submitted || !safeEqual(submitted, auth.token)) {
+            setResponseStatus(event, 401);
+            setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
+            setResponseHeader(event, 'cache-control', 'no-store');
+            return renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+          }
+
+          setResponseStatus(event, 303);
+          setResponseHeader(event, 'set-cookie', buildSessionCookie(auth));
+          setResponseHeader(event, 'location', landingPath);
+          setResponseHeader(event, 'cache-control', 'no-store');
+          return '';
+        }),
+      );
+    }
   }
 
   if (routes.openapi !== false) {
@@ -92,6 +174,7 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     router.get(
       openapiPath,
       defineEventHandler((event) => {
+        if (auth.enabled && !isAuthorized(toAuthRequest(event), auth)) return unauthorizedData(event, auth);
         const c = getContent();
         setResponseHeader(event, 'etag', c.etags.openapi);
         setResponseHeader(event, 'cache-control', 'public, max-age=3600');
@@ -109,6 +192,7 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     router.get(
       llmsPath,
       defineEventHandler((event) => {
+        if (auth.enabled && !isAuthorized(toAuthRequest(event), auth)) return unauthorizedData(event, auth);
         const c = getContent();
         setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8');
         setResponseHeader(event, 'etag', c.etags.llmsTxt);
@@ -127,6 +211,7 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
     router.get(
       humanPath,
       defineEventHandler((event) => {
+        if (auth.enabled && !isAuthorized(toAuthRequest(event), auth)) return unauthorizedData(event, auth);
         const c = getContent();
         setResponseHeader(event, 'content-type', 'text/markdown; charset=utf-8');
         setResponseHeader(event, 'etag', c.etags.humanDocs);

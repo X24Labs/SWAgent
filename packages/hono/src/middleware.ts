@@ -1,7 +1,43 @@
-import { Hono } from 'hono';
-import { generate, fallbackOutput, computeEtag, estimateTokens, type SwagentOptions, type OpenAPISpec } from '@swagent/core';
+import { Hono, type Context } from 'hono';
+import {
+  generate,
+  fallbackOutput,
+  computeEtag,
+  estimateTokens,
+  resolveAuth,
+  isAuthorized,
+  safeEqual,
+  parseCookies,
+  parseFormBody,
+  buildSessionCookie,
+  renderLoginForm,
+  renderUnauthorized,
+  type AuthRequest,
+  type ResolvedAuth,
+  type SwagentOptions,
+  type OpenAPISpec,
+} from '@swagent/core';
 
 export interface SwagentHonoOptions extends SwagentOptions {}
+
+function toAuthRequest(c: Context): AuthRequest {
+  return {
+    query: c.req.query() as Record<string, string>,
+    headers: c.req.raw.headers,
+    cookies: parseCookies(c.req.header('cookie')),
+  };
+}
+
+function gateData(c: Context, auth: ResolvedAuth): Response | null {
+  if (isAuthorized(toAuthRequest(c), auth)) return null;
+  return new Response(renderUnauthorized(auth), {
+    status: 401,
+    headers: {
+      'content-type': 'text/plain; charset=utf-8',
+      'cache-control': 'no-store',
+    },
+  });
+}
 
 export function swagentHono(
   spec: OpenAPISpec,
@@ -9,6 +45,7 @@ export function swagentHono(
 ): Hono {
   const app = new Hono();
   const routes = options.routes || {};
+  const auth = resolveAuth(options.auth);
 
   let cached: {
     llmsTxt: string;
@@ -53,12 +90,33 @@ export function swagentHono(
     return cached;
   }
 
+  function loginTitle(): string {
+    return options.title ?? spec.info?.title ?? 'API Documentation';
+  }
+
   if (routes.landing !== false) {
     const landingPath = typeof routes.landing === 'string' ? routes.landing : '/';
+
     app.get(landingPath, (c) => {
       const ct = getContent();
       const acceptHeader = c.req.header('Accept');
       const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
+
+      if (auth.enabled && !isAuthorized(toAuthRequest(c), auth)) {
+        if (wantsMarkdown) {
+          return new Response(renderUnauthorized(auth), {
+            status: 401,
+            headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+          });
+        }
+        return new Response(
+          renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }),
+          {
+            status: 401,
+            headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+          },
+        );
+      }
 
       if (wantsMarkdown) {
         const tokens = estimateTokens(ct.llmsTxt);
@@ -81,11 +139,51 @@ export function swagentHono(
         return c.html(ct.htmlLanding);
       }
     });
+
+    if (auth.enabled) {
+      app.post(landingPath, async (c) => {
+        const ctype = c.req.header('content-type') ?? '';
+        let submitted = '';
+        if (ctype.includes('application/x-www-form-urlencoded')) {
+          submitted = parseFormBody(await c.req.text())[auth.formField] ?? '';
+        } else {
+          try {
+            const body = await c.req.parseBody();
+            submitted = String((body as Record<string, unknown>)[auth.formField] ?? '');
+          } catch {
+            submitted = '';
+          }
+        }
+
+        if (!submitted || !safeEqual(submitted, auth.token)) {
+          return new Response(
+            renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }),
+            {
+              status: 401,
+              headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+            },
+          );
+        }
+
+        return new Response(null, {
+          status: 303,
+          headers: {
+            'set-cookie': buildSessionCookie(auth),
+            'location': landingPath,
+            'cache-control': 'no-store',
+          },
+        });
+      });
+    }
   }
 
   if (routes.openapi !== false) {
     const openapiPath = typeof routes.openapi === 'string' ? routes.openapi : '/openapi.json';
     app.get(openapiPath, (c) => {
+      if (auth.enabled) {
+        const r = gateData(c, auth);
+        if (r) return r;
+      }
       const ct = getContent();
       c.header('ETag', ct.etags.openapi);
       c.header('Cache-Control', 'public, max-age=3600');
@@ -99,6 +197,10 @@ export function swagentHono(
   if (routes.llmsTxt !== false) {
     const llmsPath = typeof routes.llmsTxt === 'string' ? routes.llmsTxt : '/llms.txt';
     app.get(llmsPath, (c) => {
+      if (auth.enabled) {
+        const r = gateData(c, auth);
+        if (r) return r;
+      }
       const ct = getContent();
       c.header('ETag', ct.etags.llmsTxt);
       c.header('Cache-Control', 'public, max-age=3600');
@@ -112,6 +214,10 @@ export function swagentHono(
   if (routes.humanDocs !== false) {
     const humanPath = typeof routes.humanDocs === 'string' ? routes.humanDocs : '/to-humans.md';
     app.get(humanPath, (c) => {
+      if (auth.enabled) {
+        const r = gateData(c, auth);
+        if (r) return r;
+      }
       const ct = getContent();
       c.header('Content-Type', 'text/markdown; charset=utf-8');
       c.header('ETag', ct.etags.humanDocs);

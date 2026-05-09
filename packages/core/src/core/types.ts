@@ -22,6 +22,8 @@ export interface SwagentOptions {
   routes?: SwagentRoutes;
   /** Landing page configuration */
   landing?: SwagentLandingConfig;
+  /** Access token gate. If set (or env SWAGENT_TOKEN present), all routes require the token. */
+  auth?: import('./auth.js').SwagentAuthOptions;
 }
 
 export interface SwagentOutput {
