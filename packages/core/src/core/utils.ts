@@ -2,10 +2,12 @@ import type {
   OpenAPISpec,
   EndpointInfo,
   ParameterObject,
+  ResolvedRoutes,
   ResponseObject,
   SchemaObject,
   SecurityRequirement,
   SecuritySchemes,
+  SwagentOptions,
 } from './types.js';
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
@@ -195,6 +197,35 @@ export function extractParamsByLocation(
   location: 'path' | 'query',
 ): ParameterObject[] {
   return parameters.filter((p) => p.in === location);
+}
+
+/**
+ * Resolve effective route paths from `SwagentOptions`. Honors `routes.*`
+ * overrides, `routes.* === false` (disabled → `null`), and prepends
+ * `options.prefix` to every non-null result.
+ *
+ * Example: `resolveRoutes({ prefix: '/docs', routes: { humanDocs: false } })`
+ * returns `{ llmsTxt: '/docs/llms.txt', humanDocs: null, openapi: '/docs/openapi.json', landing: '/docs/' }`.
+ *
+ * Used by the HTML generator so its self-references (header `<link rel="alternate">`
+ * and the format-card footer) match the actually mounted paths.
+ */
+export function resolveRoutes(options: SwagentOptions = {}): ResolvedRoutes {
+  const r = options.routes ?? {};
+  const prefix = (options.prefix ?? '').replace(/\/+$/, '');
+  const join = (path: string): string => {
+    if (!prefix) return path;
+    if (path === '/') return prefix || '/';
+    return path.startsWith('/') ? `${prefix}${path}` : `${prefix}/${path}`;
+  };
+  const norm = (cfg: string | false | undefined, def: string): string | null =>
+    cfg === false ? null : join(typeof cfg === 'string' ? cfg : def);
+  return {
+    llmsTxt: norm(r.llmsTxt, '/llms.txt'),
+    humanDocs: norm(r.humanDocs, '/to-humans.md'),
+    openapi: norm(r.openapi, '/openapi.json'),
+    landing: norm(r.landing, '/'),
+  };
 }
 
 /**

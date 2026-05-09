@@ -12,6 +12,8 @@ import {
   buildSessionCookie,
   renderLoginForm,
   renderUnauthorized,
+  resolveBaseUrl,
+  substituteBaseUrl,
   type AuthRequest,
   type ResolvedAuth,
   type SwagentOptions,
@@ -26,6 +28,15 @@ function toAuthRequest(c: Context): AuthRequest {
     headers: c.req.raw.headers,
     cookies: parseCookies(c.req.header('cookie')),
   };
+}
+
+function detectBaseUrl(c: Context): string {
+  return resolveBaseUrl({
+    host: c.req.header('host'),
+    forwardedHost: c.req.header('x-forwarded-host'),
+    forwardedProto: c.req.header('x-forwarded-proto'),
+    protocol: new URL(c.req.url).protocol.replace(':', ''),
+  });
 }
 
 function gateData(c: Context, auth: ResolvedAuth): Response | null {
@@ -110,7 +121,7 @@ export function swagentHono(
           });
         }
         return new Response(
-          renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }),
+          renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField }),
           {
             status: 401,
             headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
@@ -118,8 +129,11 @@ export function swagentHono(
         );
       }
 
+      const detected = detectBaseUrl(c);
+
       if (wantsMarkdown) {
-        const tokens = estimateTokens(ct.llmsTxt);
+        const body = substituteBaseUrl(ct.llmsTxt, detected);
+        const tokens = estimateTokens(body);
         c.header('Content-Type', 'text/markdown; charset=utf-8');
         c.header('x-markdown-tokens', String(tokens));
         c.header('Vary', 'accept');
@@ -128,7 +142,7 @@ export function swagentHono(
         if (c.req.header('If-None-Match') === ct.etags.llmsTxt) {
           return c.body(null, 304);
         }
-        return c.body(ct.llmsTxt);
+        return c.body(body);
       } else {
         c.header('Vary', 'accept');
         c.header('ETag', ct.etags.htmlLanding);
@@ -136,7 +150,7 @@ export function swagentHono(
         if (c.req.header('If-None-Match') === ct.etags.htmlLanding) {
           return c.body(null, 304);
         }
-        return c.html(ct.htmlLanding);
+        return c.html(substituteBaseUrl(ct.htmlLanding, detected));
       }
     });
 
@@ -157,7 +171,7 @@ export function swagentHono(
 
         if (!submitted || !safeEqual(submitted, auth.token)) {
           return new Response(
-            renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }),
+            renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField }),
             {
               status: 401,
               headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
@@ -169,7 +183,7 @@ export function swagentHono(
           status: 303,
           headers: {
             'set-cookie': buildSessionCookie(auth),
-            'location': landingPath,
+            'location': c.req.path || landingPath,
             'cache-control': 'no-store',
           },
         });
@@ -207,7 +221,7 @@ export function swagentHono(
       if (c.req.header('If-None-Match') === ct.etags.llmsTxt) {
         return c.body(null, 304);
       }
-      return c.text(ct.llmsTxt);
+      return c.text(substituteBaseUrl(ct.llmsTxt, detectBaseUrl(c)));
     });
   }
 
@@ -225,7 +239,7 @@ export function swagentHono(
       if (c.req.header('If-None-Match') === ct.etags.humanDocs) {
         return c.body(null, 304);
       }
-      return c.body(ct.humanDocs);
+      return c.body(substituteBaseUrl(ct.humanDocs, detectBaseUrl(c)));
     });
   }
 

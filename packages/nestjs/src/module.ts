@@ -24,6 +24,8 @@ import {
   buildSessionCookie,
   renderLoginForm,
   renderUnauthorized,
+  resolveBaseUrl,
+  substituteBaseUrl,
   type AuthRequest,
   type ResolvedAuth,
   type SwagentOptions,
@@ -47,6 +49,17 @@ function reqToAuth(req: any): AuthRequest {
     headers: req.headers as Record<string, string | string[] | undefined>,
     cookies: parseCookies(req.headers?.cookie),
   };
+}
+
+function reqToBaseUrl(req: any): string {
+  const h = req.headers ?? {};
+  return resolveBaseUrl({
+    host: h.host,
+    forwardedHost: h['x-forwarded-host'],
+    forwardedProto: h['x-forwarded-proto'],
+    protocol: req.protocol,
+    encrypted: req.secure === true,
+  });
 }
 
 @Injectable()
@@ -147,8 +160,11 @@ class SwagentController {
       return;
     }
 
+    const detected = reqToBaseUrl(req);
+
     if (wantsMarkdown) {
-      const tokens = estimateTokens(c.llmsTxt);
+      const body = substituteBaseUrl(c.llmsTxt, detected);
+      const tokens = estimateTokens(body);
       res.set('Content-Type', 'text/markdown; charset=utf-8');
       res.set('x-markdown-tokens', String(tokens));
       res.set('Vary', 'accept');
@@ -158,7 +174,7 @@ class SwagentController {
         res.status(304).end();
         return;
       }
-      res.send(c.llmsTxt);
+      res.send(body);
     } else {
       res.set('Content-Type', 'text/html; charset=utf-8');
       res.set('Vary', 'accept');
@@ -168,7 +184,7 @@ class SwagentController {
         res.status(304).end();
         return;
       }
-      res.send(c.htmlLanding);
+      res.send(substituteBaseUrl(c.htmlLanding, detected));
     }
   }
 
@@ -196,7 +212,7 @@ class SwagentController {
     }
     res.status(303)
       .set('Set-Cookie', buildSessionCookie(auth))
-      .set('Location', '/')
+      .set('Location', req.originalUrl || '/')
       .set('Cache-Control', 'no-store')
       .end();
   }
@@ -213,7 +229,7 @@ class SwagentController {
       res.status(304).end();
       return;
     }
-    res.send(c.llmsTxt);
+    res.send(substituteBaseUrl(c.llmsTxt, reqToBaseUrl(req)));
   }
 
   @Get('to-humans.md')
@@ -228,7 +244,7 @@ class SwagentController {
       res.status(304).end();
       return;
     }
-    res.send(c.humanDocs);
+    res.send(substituteBaseUrl(c.humanDocs, reqToBaseUrl(req)));
   }
 
   @Get('openapi.json')
@@ -351,7 +367,7 @@ export class SwagentModule {
       return false;
     }
 
-    const serve = (path: string, contentType: string, body: string, etag: string) => {
+    const serve = (path: string, contentType: string, body: string, etag: string, sub: boolean) => {
       httpAdapter.get(path, (req: any, res: any) => {
         if (!gateData(req, res)) return;
         res.set('ETag', etag);
@@ -360,7 +376,8 @@ export class SwagentModule {
           res.status(304).end();
           return;
         }
-        res.type(contentType).send(body);
+        const out = sub ? substituteBaseUrl(body, reqToBaseUrl(req)) : body;
+        res.type(contentType).send(out);
       });
     };
 
@@ -388,13 +405,15 @@ export class SwagentModule {
               title: loginTitle,
               theme: options.theme,
               formField: auth.formField,
-              action: p,
             }));
           return;
         }
 
+        const detected = reqToBaseUrl(req);
+
         if (wantsMarkdown) {
-          const tokens = estimateTokens(output.llmsTxt);
+          const body = substituteBaseUrl(output.llmsTxt, detected);
+          const tokens = estimateTokens(body);
           res.set('Content-Type', 'text/markdown; charset=utf-8');
           res.set('x-markdown-tokens', String(tokens));
           res.set('Vary', 'accept');
@@ -404,7 +423,7 @@ export class SwagentModule {
             res.status(304).end();
             return;
           }
-          res.send(output.llmsTxt);
+          res.send(body);
         } else {
           res.set('Content-Type', 'text/html; charset=utf-8');
           res.set('Vary', 'accept');
@@ -414,7 +433,7 @@ export class SwagentModule {
             res.status(304).end();
             return;
           }
-          res.send(output.htmlLanding);
+          res.send(substituteBaseUrl(output.htmlLanding, detected));
         }
       });
 
@@ -435,13 +454,12 @@ export class SwagentModule {
                 title: loginTitle,
                 theme: options.theme,
                 formField: auth.formField,
-                action: p,
               }));
             return;
           }
           res.status(303)
             .set('Set-Cookie', buildSessionCookie(auth))
-            .set('Location', p)
+            .set('Location', req.originalUrl || p)
             .set('Cache-Control', 'no-store')
             .end();
         });
@@ -453,7 +471,7 @@ export class SwagentModule {
         typeof routes.llmsTxt === 'string'
           ? routes.llmsTxt
           : `${prefix}/llms.txt`;
-      serve(p, 'text/plain; charset=utf-8', output.llmsTxt, etags.llmsTxt);
+      serve(p, 'text/plain; charset=utf-8', output.llmsTxt, etags.llmsTxt, true);
     }
 
     if (routes.humanDocs !== false) {
@@ -461,7 +479,7 @@ export class SwagentModule {
         typeof routes.humanDocs === 'string'
           ? routes.humanDocs
           : `${prefix}/to-humans.md`;
-      serve(p, 'text/markdown; charset=utf-8', output.humanDocs, etags.humanDocs);
+      serve(p, 'text/markdown; charset=utf-8', output.humanDocs, etags.humanDocs, true);
     }
 
     if (routes.openapi !== false) {
@@ -471,7 +489,7 @@ export class SwagentModule {
           : `${prefix}/openapi.json`;
       let specJson: string;
       try { specJson = JSON.stringify(spec); } catch { specJson = '{}'; }
-      serve(p, 'application/json; charset=utf-8', specJson, etags.openapi);
+      serve(p, 'application/json; charset=utf-8', specJson, etags.openapi, false);
     }
   }
 }

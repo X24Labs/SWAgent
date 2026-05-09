@@ -12,6 +12,8 @@ import {
   buildSessionCookie,
   renderLoginForm,
   renderUnauthorized,
+  resolveBaseUrl,
+  substituteBaseUrl,
   type AuthRequest,
   type ResolvedAuth,
   type SwagentOptions,
@@ -27,6 +29,16 @@ function toAuthRequest(request: Request): AuthRequest {
     headers: request.headers,
     cookies: parseCookies(request.headers.get('cookie')),
   };
+}
+
+function detectBaseUrl(request: Request): string {
+  const url = new URL(request.url);
+  return resolveBaseUrl({
+    host: request.headers.get('host') || url.host,
+    forwardedHost: request.headers.get('x-forwarded-host'),
+    forwardedProto: request.headers.get('x-forwarded-proto'),
+    protocol: url.protocol.replace(':', ''),
+  });
 }
 
 function unauthorizedData(auth: ResolvedAuth): Response {
@@ -111,7 +123,7 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
       if (auth.enabled && !isAuthorized(toAuthRequest(request), auth)) {
         if (wantsMarkdown) return unauthorizedData(auth);
         return new Response(
-          renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }),
+          renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField }),
           {
             status: 401,
             headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
@@ -119,8 +131,11 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
         );
       }
 
+      const detected = detectBaseUrl(request);
+
       if (wantsMarkdown) {
-        const tokens = estimateTokens(c.llmsTxt);
+        const body = substituteBaseUrl(c.llmsTxt, detected);
+        const tokens = estimateTokens(body);
         const headers: Record<string, string> = {
           'content-type': 'text/markdown; charset=utf-8',
           'x-markdown-tokens': String(tokens),
@@ -131,7 +146,7 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
         if (request.headers.get('if-none-match') === c.etags.llmsTxt) {
           return new Response(null, { status: 304, headers });
         }
-        return new Response(c.llmsTxt, { headers });
+        return new Response(body, { headers });
       } else {
         const headers: Record<string, string> = {
           'content-type': 'text/html; charset=utf-8',
@@ -142,7 +157,7 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
         if (request.headers.get('if-none-match') === c.etags.htmlLanding) {
           return new Response(null, { status: 304, headers });
         }
-        return new Response(c.htmlLanding, { headers });
+        return new Response(substituteBaseUrl(c.htmlLanding, detected), { headers });
       }
     });
 
@@ -170,7 +185,7 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
 
         if (!submitted || !safeEqual(submitted, auth.token)) {
           return new Response(
-            renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }),
+            renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField }),
             {
               status: 401,
               headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
@@ -182,7 +197,7 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
           status: 303,
           headers: {
             'set-cookie': buildSessionCookie(auth),
-            'location': landingPath,
+            'location': new URL(request.url).pathname || landingPath,
             'cache-control': 'no-store',
           },
         });
@@ -204,7 +219,7 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
     app.get(llmsPath, ({ request }) => {
       if (auth.enabled && !isAuthorized(toAuthRequest(request), auth)) return unauthorizedData(auth);
       const c = getContent();
-      return cachedResponse(c.llmsTxt, 'text/plain; charset=utf-8', c.etags.llmsTxt, request);
+      return cachedResponse(substituteBaseUrl(c.llmsTxt, detectBaseUrl(request)), 'text/plain; charset=utf-8', c.etags.llmsTxt, request);
     });
   }
 
@@ -213,7 +228,7 @@ export function swagentElysia(spec: OpenAPISpec, options: SwagentElysiaOptions =
     app.get(humanPath, ({ request }) => {
       if (auth.enabled && !isAuthorized(toAuthRequest(request), auth)) return unauthorizedData(auth);
       const c = getContent();
-      return cachedResponse(c.humanDocs, 'text/markdown; charset=utf-8', c.etags.humanDocs, request);
+      return cachedResponse(substituteBaseUrl(c.humanDocs, detectBaseUrl(request)), 'text/markdown; charset=utf-8', c.etags.humanDocs, request);
     });
   }
 

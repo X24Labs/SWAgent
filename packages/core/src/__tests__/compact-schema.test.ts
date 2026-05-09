@@ -287,3 +287,53 @@ describe('schemaToJsonHtml', () => {
     expect(html).toContain('<span class="tk-punc">|</span>');
   });
 });
+
+describe('anyOf-of-const enum collapse', () => {
+  it('compactSchema renders anyOf-of-const as enum[...]', () => {
+    const schema: any = {
+      anyOf: [
+        { type: 'string', const: 'casual' },
+        { type: 'string', const: 'professional' },
+        { type: 'string', const: 'short' },
+      ],
+    };
+    expect(compactSchema(schema)).toBe('enum["casual", "professional", "short"]');
+  });
+
+  it('compactSchema collapses oneOf-of-const too', () => {
+    const schema: any = {
+      oneOf: [
+        { type: 'string', const: 'a' },
+        { type: 'string', const: 'b' },
+      ],
+    };
+    expect(compactSchema(schema)).toBe('enum["a", "b"]');
+  });
+
+  it('compactSchema works for non-string consts (numbers, booleans)', () => {
+    const schema: any = {
+      anyOf: [{ const: 1 }, { const: 2 }, { const: 3 }],
+    };
+    expect(compactSchema(schema)).toBe('enum[1, 2, 3]');
+  });
+
+  it('compactSchema falls back to "|" union when not all variants are const', () => {
+    const schema: any = {
+      anyOf: [
+        { type: 'string', const: 'a' },
+        { type: 'object', properties: { x: { type: 'string' } } },
+      ],
+    };
+    expect(compactSchema(schema)).toContain(' | ');
+  });
+
+  it('prettySchema also renders anyOf-of-const as enum[...]', () => {
+    const schema: any = {
+      anyOf: [
+        { type: 'string', const: 'casual' },
+        { type: 'string', const: 'professional' },
+      ],
+    };
+    expect(prettySchema(schema)).toBe('enum["casual", "professional"]');
+  });
+});

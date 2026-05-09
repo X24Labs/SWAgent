@@ -1,12 +1,14 @@
-import type { OpenAPISpec, EndpointInfo, SecuritySchemes, SwagentOptions } from '../types.js';
+import type { OpenAPISpec, EndpointInfo, ResolvedRoutes, SecuritySchemes, SwagentOptions } from '../types.js';
 import {
   escapeHtml,
   extractFirstParagraph,
   groupPathsByTag,
   formatSecurity,
   pickAllResponses,
+  resolveRoutes,
   tagToSlug,
 } from '../utils.js';
+import { BASEURL_PLACEHOLDER } from '../base-url.js';
 import { schemaToJsonHtml } from './compact-schema.js';
 import { SWAGENT_VERSION } from '../../version.js';
 
@@ -20,10 +22,16 @@ import { SWAGENT_VERSION } from '../../version.js';
  * - Hero with prompt suggestion
  * - Stats, category cards, endpoint tables below fold
  */
-export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions = {}): string {
+export function generateHtmlLanding(
+  spec: OpenAPISpec,
+  options: SwagentOptions = {},
+  routes: ResolvedRoutes = resolveRoutes(options),
+): string {
   const projectName = escapeHtml(options.title || spec.info?.title || 'API');
   const version = escapeHtml(spec.info?.version || '');
-  const baseUrl = options.baseUrl || spec.servers?.[0]?.url || '';
+  // When neither option nor spec specifies a base URL, emit a placeholder
+  // string so the adapter can substitute the runtime-detected URL per-request.
+  const baseUrl = options.baseUrl || spec.servers?.[0]?.url || BASEURL_PLACEHOLDER;
   const description = escapeHtml(extractFirstParagraph(spec.info?.description || ''));
   const tagGroups = groupPathsByTag(spec);
   // groupPathsByTag returns tags sorted A-Z; iterate that order.
@@ -31,7 +39,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
     (t) => tagGroups[t]?.length > 0,
   );
   const securitySchemes = spec.components?.securitySchemes;
-  const promptText = `Learn ${baseUrl || 'this API'}`;
+  const promptText = `Learn ${baseUrl}`;
 
   let totalEndpoints = 0;
   for (const endpoints of Object.values(tagGroups)) {
@@ -143,7 +151,7 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
   <title>${projectName}</title>
   <meta name="description" content="${description}">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(faviconSvg)}">
-  <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-optimized API reference">
+  ${routes.llmsTxt ? `<link rel="alternate" type="text/plain" href="${escapeHtml(routes.llmsTxt)}" title="LLM-optimized API reference">` : ''}
   <style>
     :root {
       --bg: #09090b;
@@ -799,9 +807,9 @@ export function generateHtmlLanding(spec: OpenAPISpec, options: SwagentOptions =
     <div class="formats">
       <h2>Available formats</h2>
       <div class="format-links">
-        <a href="/llms.txt">/llms.txt</a>
-        <a href="/to-humans.md">/to-humans.md</a>
-        <a href="/openapi.json">/openapi.json</a>
+        ${routes.llmsTxt ? `<a href="${escapeHtml(routes.llmsTxt)}">${escapeHtml(routes.llmsTxt)}</a>` : ''}
+        ${routes.humanDocs ? `<a href="${escapeHtml(routes.humanDocs)}">${escapeHtml(routes.humanDocs)}</a>` : ''}
+        ${routes.openapi ? `<a href="${escapeHtml(routes.openapi)}">${escapeHtml(routes.openapi)}</a>` : ''}
       </div>
       <div class="cn-callout">\n        <div class="cn-callout-title">Machine-readable</div>\n        <p class="cn-callout-body">No separate URL to discover. Your AI agent hits this page directly and receives the token-optimized format — no /llms.txt convention required.</p>\n        <code class="cn-callout-code">curl -H &quot;Accept: text/markdown&quot; ${baseUrl}/</code>\n      </div>
     </div>

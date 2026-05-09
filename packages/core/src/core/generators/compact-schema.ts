@@ -7,6 +7,23 @@ import type {
 import { escapeHtml } from '../utils.js';
 
 /**
+ * Detect `anyOf`/`oneOf` whose every variant is `{ const, type? }` — TypeBox
+ * and many JSON Schema generators emit enums this way. Returns the literal
+ * values when matched, or `null` to fall through to default rendering.
+ */
+function unionConstLiterals(variants: SchemaObject[]): unknown[] | null {
+  if (!variants.length) return null;
+  const out: unknown[] = [];
+  for (const v of variants) {
+    if (!v || typeof v !== 'object') return null;
+    const constVal = (v as { const?: unknown }).const;
+    if (typeof constVal === 'undefined') return null;
+    out.push(constVal);
+  }
+  return out;
+}
+
+/**
  * Compact schema notation for token-optimized output.
  * - `*` after field name = required
  * - `:type` suffix for non-string types
@@ -18,9 +35,12 @@ import { escapeHtml } from '../utils.js';
 export function compactSchema(schema: SchemaObject | null, depth: number = 0): string {
   if (!schema || depth > 3) return '...';
 
-  // oneOf / anyOf → union notation: `{a, b} | {c, d}`
+  // oneOf / anyOf → union notation: `{a, b} | {c, d}`.
+  // Special case: anyOf-of-const collapses to enum["a", "b", "c"] (TypeBox-style).
   if (schema.oneOf || schema.anyOf) {
     const variants = (schema.oneOf || schema.anyOf) as SchemaObject[];
+    const consts = unionConstLiterals(variants);
+    if (consts) return `enum[${consts.map((c) => JSON.stringify(c)).join(', ')}]`;
     return variants.map((v) => compactSchema(v, depth + 1)).join(' | ');
   }
 
@@ -119,9 +139,12 @@ export function prettySchema(schema: SchemaObject | null, depth: number = 0): st
   if (!schema || depth > 3) return '...';
   const indent = '  '.repeat(depth);
 
-  // oneOf / anyOf → show variants separated by " | "
+  // oneOf / anyOf → show variants separated by " | ". Special case:
+  // anyOf-of-const collapses to enum["a", "b", "c"] (TypeBox-style).
   if (schema.oneOf || schema.anyOf) {
     const variants = (schema.oneOf || schema.anyOf) as SchemaObject[];
+    const consts = unionConstLiterals(variants);
+    if (consts) return `enum[${consts.map((c) => JSON.stringify(c)).join(', ')}]`;
     return variants.map((v) => prettySchema(v, depth + 1)).join(' | ');
   }
 

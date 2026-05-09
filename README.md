@@ -411,12 +411,35 @@ All adapters and the CLI accept the same options:
     openapi: '/openapi.json',  // or false to disable
   },
 
+  // Path prefix the host app mounts swagent under (e.g. '/docs').
+  // Used by the HTML landing so links in the format-card footer and the
+  // <link rel="alternate"> in <head> resolve correctly under any prefix.
+  prefix: '/docs',
+
+  // baseUrl is optional. If unset, adapters auto-detect from request
+  // headers (X-Forwarded-Host/Proto, falling back to Host) per-request.
+  // Set explicitly to override (multi-tenant deploys, fixed canonical URL).
+  // baseUrl: 'https://api.example.com',
+
   // Optional access token gate (adapters only). See "Access token" section.
   auth: {
     token: process.env.SWAGENT_TOKEN, // also auto-read from env if omitted
   },
 }
 ```
+
+### Mounting under a sub-prefix
+
+When you mount swagent under a parent router (e.g. Elysia `new Elysia({ prefix: '/docs' })`), pass the same prefix as `options.prefix` so the landing page's self-references match the actually mounted paths:
+
+```typescript
+const PREFIX = '/docs';
+new Elysia({ prefix: PREFIX }).use(
+  swagentElysia(spec, { prefix: PREFIX }),
+);
+```
+
+Without this, the `<link rel="alternate" type="text/plain">` in the rendered landing and the format-card footer would all point at the framework root and 404.
 
 ### Custom routes
 

@@ -93,3 +93,35 @@ describe('@swagent/elysia auth gate', () => {
     expect(res.status).toBe(200);
   });
 });
+
+import { Elysia } from 'elysia';
+
+describe('@swagent/elysia mounted under sub-prefix', () => {
+  function buildPrefixedApp(prefix: string) {
+    return new Elysia().use(
+      new Elysia({ prefix }).use(
+        swagentElysia(spec, { prefix }),
+      ),
+    );
+  }
+
+  it('serves all 4 routes correctly under /docs', async () => {
+    const app = buildPrefixedApp('/docs');
+    expect((await app.handle(new Request('http://localhost/docs/llms.txt'))).status).toBe(200);
+    expect((await app.handle(new Request('http://localhost/docs/to-humans.md'))).status).toBe(200);
+    expect((await app.handle(new Request('http://localhost/docs/openapi.json'))).status).toBe(200);
+    expect((await app.handle(new Request('http://localhost/docs/'))).status).toBe(200);
+  });
+
+  it('renders landing with prefixed self-references in head and footer', async () => {
+    const app = buildPrefixedApp('/docs');
+    const res = await app.handle(new Request('http://localhost/docs/'));
+    const html = await res.text();
+    expect(html).toContain('<a href="/docs/llms.txt">');
+    expect(html).toContain('<a href="/docs/to-humans.md">');
+    expect(html).toContain('<a href="/docs/openapi.json">');
+    expect(html).toContain('rel="alternate"');
+    expect(html).toContain('href="/docs/llms.txt"');
+    expect(html).not.toMatch(/<a href="\/llms\.txt">/);
+  });
+});

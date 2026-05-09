@@ -12,6 +12,8 @@ import {
   buildSessionCookie,
   renderLoginForm,
   renderUnauthorized,
+  resolveBaseUrl,
+  substituteBaseUrl,
   type AuthRequest,
   type ResolvedAuth,
   type SwagentOptions,
@@ -27,6 +29,16 @@ function toAuthRequest(req: FastifyRequest): AuthRequest {
     query: req.query as Record<string, string | string[] | undefined>,
     headers: req.headers as Record<string, string | string[] | undefined>,
   };
+}
+
+function detectBaseUrl(req: FastifyRequest): string {
+  const h = req.headers;
+  return resolveBaseUrl({
+    host: typeof h.host === 'string' ? h.host : null,
+    forwardedHost: typeof h['x-forwarded-host'] === 'string' ? h['x-forwarded-host'] : null,
+    forwardedProto: typeof h['x-forwarded-proto'] === 'string' ? h['x-forwarded-proto'] : null,
+    protocol: req.protocol,
+  });
 }
 
 function gateData(req: FastifyRequest, reply: FastifyReply, auth: ResolvedAuth): boolean {
@@ -87,12 +99,15 @@ async function swagentPlugin(
           .code(401)
           .header('cache-control', 'no-store')
           .type('text/html; charset=utf-8')
-          .send(renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }));
+          .send(renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField }));
         return;
       }
 
+      const detected = detectBaseUrl(request);
+
       if (wantsMarkdown) {
-        const tokens = estimateTokens(llmsTxtContent);
+        const body = substituteBaseUrl(llmsTxtContent, detected);
+        const tokens = estimateTokens(body);
         reply.header('content-type', 'text/markdown; charset=utf-8');
         reply.header('x-markdown-tokens', String(tokens));
         reply.header('vary', 'accept');
@@ -101,7 +116,7 @@ async function swagentPlugin(
         if (request.headers['if-none-match'] === etags.llmsTxt) {
           return reply.code(304).send();
         }
-        return reply.send(llmsTxtContent);
+        return reply.send(body);
       } else {
         reply.header('vary', 'accept');
         reply.header('etag', etags.htmlLanding);
@@ -109,7 +124,7 @@ async function swagentPlugin(
         if (request.headers['if-none-match'] === etags.htmlLanding) {
           return reply.code(304).send();
         }
-        return reply.type('text/html; charset=utf-8').send(htmlContent);
+        return reply.type('text/html; charset=utf-8').send(substituteBaseUrl(htmlContent, detected));
       }
     });
 
@@ -131,14 +146,14 @@ async function swagentPlugin(
             .code(401)
             .header('cache-control', 'no-store')
             .type('text/html; charset=utf-8')
-            .send(renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath }));
+            .send(renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField }));
           return;
         }
 
         reply
           .code(303)
           .header('set-cookie', buildSessionCookie(auth))
-          .header('location', landingPath)
+          .header('location', request.url || landingPath)
           .header('cache-control', 'no-store')
           .send();
       });
@@ -169,7 +184,7 @@ async function swagentPlugin(
       if (request.headers['if-none-match'] === etags.llmsTxt) {
         return reply.code(304).send();
       }
-      return reply.type('text/plain; charset=utf-8').send(llmsTxtContent);
+      return reply.type('text/plain; charset=utf-8').send(substituteBaseUrl(llmsTxtContent, detectBaseUrl(request)));
     });
   }
 
@@ -182,7 +197,7 @@ async function swagentPlugin(
       if (request.headers['if-none-match'] === etags.humanDocs) {
         return reply.code(304).send();
       }
-      return reply.type('text/markdown; charset=utf-8').send(humanDocsContent);
+      return reply.type('text/markdown; charset=utf-8').send(substituteBaseUrl(humanDocsContent, detectBaseUrl(request)));
     });
   }
 

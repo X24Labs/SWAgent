@@ -1,4 +1,5 @@
 import type { OpenAPISpec, SwagentOptions } from '../types.js';
+import { BASEURL_PLACEHOLDER } from '../base-url.js';
 import { extractFirstParagraph, groupPathsByTag, extractParamsByLocation } from '../utils.js';
 import { compactSchema, formatSecurityCompact, formatQueryCompact } from './compact-schema.js';
 
@@ -15,7 +16,8 @@ import { compactSchema, formatSecurityCompact, formatQueryCompact } from './comp
 export function generateLlmsTxt(spec: OpenAPISpec, options: SwagentOptions = {}): string {
   const lines: string[] = [];
   const projectName = options.title || spec.info?.title || 'API';
-  const baseUrl = options.baseUrl || spec.servers?.[0]?.url || '';
+  // Placeholder substituted by adapters per-request when no explicit URL set.
+  const baseUrl = options.baseUrl || spec.servers?.[0]?.url || BASEURL_PLACEHOLDER;
   const description = extractFirstParagraph(spec.info?.description || '');
   const tagGroups = groupPathsByTag(spec);
   // groupPathsByTag returns tags sorted A-Z; iterate that order.

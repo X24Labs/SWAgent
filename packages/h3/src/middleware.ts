@@ -22,6 +22,8 @@ import {
   buildSessionCookie,
   renderLoginForm,
   renderUnauthorized,
+  resolveBaseUrl,
+  substituteBaseUrl,
   type AuthRequest,
   type ResolvedAuth,
   type SwagentOptions,
@@ -36,6 +38,15 @@ function toAuthRequest(event: H3Event): AuthRequest {
     headers: event.node.req.headers as Record<string, string | string[] | undefined>,
     cookies: parseCookies(getRequestHeader(event, 'cookie')),
   };
+}
+
+function detectBaseUrl(event: H3Event): string {
+  return resolveBaseUrl({
+    host: getRequestHeader(event, 'host'),
+    forwardedHost: getRequestHeader(event, 'x-forwarded-host'),
+    forwardedProto: getRequestHeader(event, 'x-forwarded-proto'),
+    encrypted: (event.node.req.socket as any)?.encrypted === true,
+  });
 }
 
 function unauthorizedData(event: H3Event, auth: ResolvedAuth): string {
@@ -112,11 +123,14 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
           setResponseStatus(event, 401);
           setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
           setResponseHeader(event, 'cache-control', 'no-store');
-          return renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+          return renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField });
         }
 
+        const detected = detectBaseUrl(event);
+
         if (wantsMarkdown) {
-          const tokens = estimateTokens(c.llmsTxt);
+          const body = substituteBaseUrl(c.llmsTxt, detected);
+          const tokens = estimateTokens(body);
           setResponseHeader(event, 'content-type', 'text/markdown; charset=utf-8');
           setResponseHeader(event, 'x-markdown-tokens', String(tokens));
           setResponseHeader(event, 'vary', 'accept');
@@ -126,7 +140,7 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
             event.node.res.statusCode = 304;
             return '';
           }
-          return c.llmsTxt;
+          return body;
         } else {
           setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
           setResponseHeader(event, 'vary', 'accept');
@@ -136,7 +150,7 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
             event.node.res.statusCode = 304;
             return '';
           }
-          return c.htmlLanding;
+          return substituteBaseUrl(c.htmlLanding, detected);
         }
       }),
     );
@@ -156,12 +170,12 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
             setResponseStatus(event, 401);
             setResponseHeader(event, 'content-type', 'text/html; charset=utf-8');
             setResponseHeader(event, 'cache-control', 'no-store');
-            return renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+            return renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField });
           }
 
           setResponseStatus(event, 303);
           setResponseHeader(event, 'set-cookie', buildSessionCookie(auth));
-          setResponseHeader(event, 'location', landingPath);
+          setResponseHeader(event, 'location', event.path || landingPath);
           setResponseHeader(event, 'cache-control', 'no-store');
           return '';
         }),
@@ -201,7 +215,7 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
           event.node.res.statusCode = 304;
           return '';
         }
-        return c.llmsTxt;
+        return substituteBaseUrl(c.llmsTxt, detectBaseUrl(event));
       }),
     );
   }
@@ -220,7 +234,7 @@ export function swagentH3(spec: OpenAPISpec, options: SwagentH3Options = {}): Ro
           event.node.res.statusCode = 304;
           return '';
         }
-        return c.humanDocs;
+        return substituteBaseUrl(c.humanDocs, detectBaseUrl(event));
       }),
     );
   }

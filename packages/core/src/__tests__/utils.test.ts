@@ -200,3 +200,111 @@ describe('groupPathsByTag — sort order', () => {
     expect(a).toEqual(b);
   });
 });
+
+import { resolveRoutes } from '../core/utils.js';
+
+describe('resolveRoutes', () => {
+  it('returns built-in defaults when no options provided', () => {
+    expect(resolveRoutes()).toEqual({
+      llmsTxt: '/llms.txt',
+      humanDocs: '/to-humans.md',
+      openapi: '/openapi.json',
+      landing: '/',
+    });
+  });
+
+  it('honors string overrides in routes config', () => {
+    expect(resolveRoutes({ routes: { llmsTxt: '/foo.txt', openapi: '/spec.json' } })).toMatchObject({
+      llmsTxt: '/foo.txt',
+      openapi: '/spec.json',
+    });
+  });
+
+  it('returns null for routes set to false (disabled)', () => {
+    const r = resolveRoutes({ routes: { humanDocs: false, openapi: false } });
+    expect(r.humanDocs).toBeNull();
+    expect(r.openapi).toBeNull();
+    expect(r.llmsTxt).toBe('/llms.txt');
+  });
+
+  it('prepends prefix to all default route paths', () => {
+    expect(resolveRoutes({ prefix: '/docs' })).toEqual({
+      llmsTxt: '/docs/llms.txt',
+      humanDocs: '/docs/to-humans.md',
+      openapi: '/docs/openapi.json',
+      landing: '/docs',
+    });
+  });
+
+  it('strips trailing slash from prefix', () => {
+    expect(resolveRoutes({ prefix: '/docs/' })).toMatchObject({
+      llmsTxt: '/docs/llms.txt',
+    });
+  });
+
+  it('combines prefix with custom route paths', () => {
+    expect(
+      resolveRoutes({ prefix: '/api/docs', routes: { llmsTxt: '/llm.txt' } }),
+    ).toMatchObject({
+      llmsTxt: '/api/docs/llm.txt',
+    });
+  });
+
+  it('handles landing="/" with prefix correctly', () => {
+    expect(resolveRoutes({ prefix: '/docs' }).landing).toBe('/docs');
+  });
+});
+
+import { resolveBaseUrl, substituteBaseUrl, BASEURL_PLACEHOLDER } from '../core/base-url.js';
+
+describe('resolveBaseUrl', () => {
+  it('builds proto://host from host header alone', () => {
+    expect(resolveBaseUrl({ host: 'api.example.com', protocol: 'http' })).toBe('http://api.example.com');
+  });
+
+  it('uses https when encrypted=true and no protocol given', () => {
+    expect(resolveBaseUrl({ host: 'a.io', encrypted: true })).toBe('https://a.io');
+  });
+
+  it('prefers X-Forwarded-Host over host header', () => {
+    expect(
+      resolveBaseUrl({ host: 'internal:3000', forwardedHost: 'public.example.com', protocol: 'https' }),
+    ).toBe('https://public.example.com');
+  });
+
+  it('prefers X-Forwarded-Proto over native protocol', () => {
+    expect(
+      resolveBaseUrl({ host: 'a.io', forwardedProto: 'https', protocol: 'http' }),
+    ).toBe('https://a.io');
+  });
+
+  it('takes the first value from comma-separated forwarded headers', () => {
+    expect(
+      resolveBaseUrl({ host: 'x', forwardedHost: 'real.io, edge.io', forwardedProto: 'https, http' }),
+    ).toBe('https://real.io');
+  });
+
+  it('returns empty string when no host info available', () => {
+    expect(resolveBaseUrl({})).toBe('');
+  });
+
+  it('defaults to http when no protocol info available', () => {
+    expect(resolveBaseUrl({ host: 'a.io' })).toBe('http://a.io');
+  });
+});
+
+describe('substituteBaseUrl', () => {
+  it('replaces all occurrences of placeholder', () => {
+    const body = `Visit ${BASEURL_PLACEHOLDER}/x and ${BASEURL_PLACEHOLDER}/y`;
+    expect(substituteBaseUrl(body, 'https://api.io')).toBe('Visit https://api.io/x and https://api.io/y');
+  });
+
+  it('returns body unchanged when placeholder absent', () => {
+    expect(substituteBaseUrl('hello world', 'https://x')).toBe('hello world');
+  });
+
+  it('returns body unchanged when baseUrl is empty', () => {
+    const body = `Visit ${BASEURL_PLACEHOLDER}`;
+    expect(substituteBaseUrl(body, '')).toBe(body);
+  });
+});

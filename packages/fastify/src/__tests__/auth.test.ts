@@ -151,3 +151,55 @@ describe('@swagent/fastify auth via env var', () => {
     delete process.env.SWAGENT_TOKEN;
   });
 });
+
+describe('@swagent/fastify auto baseUrl detection', () => {
+  function buildOpenApp() {
+    const app = Fastify({ logger: false });
+    app.register(swagger, { openapi: { info: { title: 'X', version: '1' } } });
+    app.register(swagentFastify, {});
+    return app;
+  }
+
+  it('substitutes baseUrl from Host header in landing prompt', async () => {
+    const app = buildOpenApp();
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/', headers: { host: 'api.example.com' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Learn http://api.example.com');
+    expect(res.body).not.toContain('__SWAGENT_BASEURL__');
+    await app.close();
+  });
+
+  it('honors X-Forwarded-Proto for https', async () => {
+    const app = buildOpenApp();
+    await app.ready();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/',
+      headers: { host: 'api.example.com', 'x-forwarded-proto': 'https' },
+    });
+    expect(res.body).toContain('https://api.example.com');
+    await app.close();
+  });
+
+  it('substitutes baseUrl in /llms.txt', async () => {
+    const app = buildOpenApp();
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/llms.txt', headers: { host: 'api.example.com' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain('__SWAGENT_BASEURL__');
+    expect(res.body).toContain('http://api.example.com');
+    await app.close();
+  });
+
+  it('explicit baseUrl wins over auto-detection', async () => {
+    const app = Fastify({ logger: false });
+    app.register(swagger, { openapi: { info: { title: 'X', version: '1' } } });
+    app.register(swagentFastify, { baseUrl: 'https://configured.io' });
+    await app.ready();
+    const res = await app.inject({ method: 'GET', url: '/', headers: { host: 'detected.io' } });
+    expect(res.body).toContain('https://configured.io');
+    expect(res.body).not.toContain('detected.io');
+    await app.close();
+  });
+});

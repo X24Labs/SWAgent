@@ -365,3 +365,75 @@ describe('sticky top nav', () => {
     expect(result).toContain('id="top"');
   });
 });
+
+describe('respects routes config and prefix', () => {
+  it('uses custom llmsTxt path in head <link rel="alternate">', () => {
+    const html = generateHtmlLanding(sampleSpec, { routes: { llmsTxt: '/foo.txt' } });
+    expect(html).toContain('rel="alternate"');
+    expect(html).toContain('href="/foo.txt"');
+    expect(html).not.toContain('href="/llms.txt"');
+  });
+
+  it('uses custom paths in format-card footer', () => {
+    const html = generateHtmlLanding(sampleSpec, {
+      routes: { llmsTxt: '/foo.txt', openapi: '/spec.json' },
+    });
+    expect(html).toContain('<a href="/foo.txt">/foo.txt</a>');
+    expect(html).toContain('<a href="/spec.json">/spec.json</a>');
+  });
+
+  it('prepends prefix to head link and footer links', () => {
+    const html = generateHtmlLanding(sampleSpec, { prefix: '/docs' });
+    expect(html).toContain('href="/docs/llms.txt"');
+    expect(html).toContain('href="/docs/to-humans.md"');
+    expect(html).toContain('href="/docs/openapi.json"');
+    expect(html).not.toMatch(/href="\/llms\.txt"/);
+  });
+
+  it('skips disabled routes from head link and format card', () => {
+    const html = generateHtmlLanding(sampleSpec, {
+      routes: { llmsTxt: false, humanDocs: false, openapi: false },
+    });
+    expect(html).not.toContain('rel="alternate"');
+    expect(html).not.toContain('to-humans.md');
+    expect(html).not.toContain('openapi.json');
+    expect(html).not.toMatch(/href="\/llms\.txt"/);
+  });
+
+  it('honors prefix even when individual routes are also overridden', () => {
+    const html = generateHtmlLanding(sampleSpec, {
+      prefix: '/api/docs',
+      routes: { llmsTxt: '/llm.txt' },
+    });
+    expect(html).toContain('href="/api/docs/llm.txt"');
+  });
+});
+
+import { BASEURL_PLACEHOLDER } from '../core/base-url.js';
+
+describe('auto baseUrl placeholder', () => {
+  it('uses placeholder when no baseUrl in spec or options', () => {
+    const html = generateHtmlLanding({ info: { title: 'X', version: '1' }, paths: {} });
+    expect(html).toContain(BASEURL_PLACEHOLDER);
+    expect(html).toContain(`Learn ${BASEURL_PLACEHOLDER}`);
+  });
+
+  it('uses explicit options.baseUrl when set (no placeholder)', () => {
+    const html = generateHtmlLanding(
+      { info: { title: 'X', version: '1' }, paths: {} },
+      { baseUrl: 'https://api.example.com' },
+    );
+    expect(html).not.toContain(BASEURL_PLACEHOLDER);
+    expect(html).toContain('Learn https://api.example.com');
+  });
+
+  it('uses spec.servers[0].url when set and no option (no placeholder)', () => {
+    const html = generateHtmlLanding({
+      info: { title: 'X', version: '1' },
+      servers: [{ url: 'https://from-spec.io' }],
+      paths: {},
+    });
+    expect(html).not.toContain(BASEURL_PLACEHOLDER);
+    expect(html).toContain('https://from-spec.io');
+  });
+});

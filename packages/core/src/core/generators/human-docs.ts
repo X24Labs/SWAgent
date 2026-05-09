@@ -1,5 +1,6 @@
 import type { OpenAPISpec, SwagentOptions } from '../types.js';
 import { groupPathsByTag, formatSecurity, extractParamsByLocation } from '../utils.js';
+import { BASEURL_PLACEHOLDER } from '../base-url.js';
 import { prettySchema } from './compact-schema.js';
 
 /**
@@ -14,7 +15,8 @@ import { prettySchema } from './compact-schema.js';
 export function generateHumanDocs(spec: OpenAPISpec, options: SwagentOptions = {}): string {
   const lines: string[] = [];
   const projectName = options.title || spec.info?.title || 'API';
-  const baseUrl = options.baseUrl || spec.servers?.[0]?.url || '';
+  // Placeholder substituted by adapters per-request when no explicit URL set.
+  const baseUrl = options.baseUrl || spec.servers?.[0]?.url || BASEURL_PLACEHOLDER;
   const description = spec.info?.description || '';
   const version = spec.info?.version || '';
   const tagGroups = groupPathsByTag(spec);

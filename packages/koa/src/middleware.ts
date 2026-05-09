@@ -12,6 +12,8 @@ import {
   buildSessionCookie,
   renderLoginForm,
   renderUnauthorized,
+  resolveBaseUrl,
+  substituteBaseUrl,
   type AuthRequest,
   type ResolvedAuth,
   type SwagentOptions,
@@ -26,6 +28,16 @@ function toAuthRequest(ctx: any): AuthRequest {
     headers: ctx.request.headers as Record<string, string | string[] | undefined>,
     cookies: parseCookies(ctx.get('Cookie')),
   };
+}
+
+function detectBaseUrl(ctx: any): string {
+  return resolveBaseUrl({
+    host: ctx.get('host'),
+    forwardedHost: ctx.get('x-forwarded-host'),
+    forwardedProto: ctx.get('x-forwarded-proto'),
+    protocol: ctx.protocol,
+    encrypted: ctx.secure === true,
+  });
 }
 
 function gateData(ctx: any, auth: ResolvedAuth): boolean {
@@ -123,12 +135,15 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
         ctx.status = 401;
         ctx.set('Cache-Control', 'no-store');
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+        ctx.body = renderLoginForm({ title: loginTitle(), theme: options.theme, formField: auth.formField });
         return;
       }
 
+      const detected = detectBaseUrl(ctx);
+
       if (wantsMarkdown) {
-        const tokens = estimateTokens(c.llmsTxt);
+        const body = substituteBaseUrl(c.llmsTxt, detected);
+        const tokens = estimateTokens(body);
         ctx.set('x-markdown-tokens', String(tokens));
         ctx.set('Vary', 'accept');
         ctx.set('ETag', c.etags.llmsTxt);
@@ -138,7 +153,7 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
           return;
         }
         ctx.type = 'text/markdown; charset=utf-8';
-        ctx.body = c.llmsTxt;
+        ctx.body = body;
       } else {
         ctx.set('Vary', 'accept');
         ctx.set('ETag', c.etags.htmlLanding);
@@ -148,7 +163,7 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
           return;
         }
         ctx.type = 'text/html; charset=utf-8';
-        ctx.body = c.htmlLanding;
+        ctx.body = substituteBaseUrl(c.htmlLanding, detected);
       }
     });
 
@@ -167,13 +182,13 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
           ctx.status = 401;
           ctx.set('Cache-Control', 'no-store');
           ctx.type = 'text/html; charset=utf-8';
-          ctx.body = renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField, action: landingPath });
+          ctx.body = renderLoginForm({ error: true, title: loginTitle(), theme: options.theme, formField: auth.formField });
           return;
         }
 
         ctx.status = 303;
         ctx.set('Set-Cookie', buildSessionCookie(auth));
-        ctx.set('Location', landingPath);
+        ctx.set('Location', ctx.originalUrl || landingPath);
         ctx.set('Cache-Control', 'no-store');
         ctx.body = '';
       });
@@ -208,7 +223,7 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
         return;
       }
       ctx.type = 'text/plain; charset=utf-8';
-      ctx.body = c.llmsTxt;
+      ctx.body = substituteBaseUrl(c.llmsTxt, detectBaseUrl(ctx));
     });
   }
 
@@ -224,7 +239,7 @@ export function swagentKoa(spec: OpenAPISpec, options: SwagentKoaOptions = {}): 
         return;
       }
       ctx.type = 'text/markdown; charset=utf-8';
-      ctx.body = c.humanDocs;
+      ctx.body = substituteBaseUrl(c.humanDocs, detectBaseUrl(ctx));
     });
   }
 
