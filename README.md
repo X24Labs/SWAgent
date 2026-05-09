@@ -410,8 +410,36 @@ All adapters and the CLI accept the same options:
     humanDocs: '/to-humans.md', // or false to disable
     openapi: '/openapi.json',  // or false to disable
   },
+
+  // Path prefix the host app mounts swagent under (e.g. '/docs').
+  // Used by the HTML landing so links in the format-card footer and the
+  // <link rel="alternate"> in <head> resolve correctly under any prefix.
+  prefix: '/docs',
+
+  // baseUrl is optional. If unset, adapters auto-detect from request
+  // headers (X-Forwarded-Host/Proto, falling back to Host) per-request.
+  // Set explicitly to override (multi-tenant deploys, fixed canonical URL).
+  // baseUrl: 'https://api.example.com',
+
+  // Optional access token gate (adapters only). See "Access token" section.
+  auth: {
+    token: process.env.SWAGENT_TOKEN, // also auto-read from env if omitted
+  },
 }
 ```
+
+### Mounting under a sub-prefix
+
+When you mount swagent under a parent router (e.g. Elysia `new Elysia({ prefix: '/docs' })`), pass the same prefix as `options.prefix` so the landing page's self-references match the actually mounted paths:
+
+```typescript
+const PREFIX = '/docs';
+new Elysia({ prefix: PREFIX }).use(
+  swagentElysia(spec, { prefix: PREFIX }),
+);
+```
+
+Without this, the `<link rel="alternate" type="text/plain">` in the rendered landing and the format-card footer would all point at the framework root and 404.
 
 ### Custom routes
 
@@ -438,6 +466,64 @@ app.use(
   }),
 );
 ```
+
+## Access token (private docs)
+
+For internal APIs and private documentation, gate all swagent routes behind a single shared token. When enabled, `/`, `/llms.txt`, `/to-humans.md`, and `/openapi.json` all require the token. Your application's API endpoints are not affected: this only protects swagent's own routes.
+
+Set the token via env (recommended) or option:
+
+```bash
+SWAGENT_TOKEN=sk_your_long_random_token
+```
+
+```typescript
+app.register(swagentFastify, {
+  auth: { token: process.env.SWAGENT_TOKEN },
+});
+```
+
+If neither env nor option is set, the gate is disabled and routes stay public (back-compatible).
+
+### How clients pass the token
+
+| Form | Example | Best for |
+|------|---------|----------|
+| Query param | `/llms.txt?access_token=sk_...` | LLMs, copy-paste URLs, scripts |
+| Bearer header | `Authorization: Bearer sk_...` | curl, fetch, programmatic clients |
+| Cookie | `swagent_token=sk_...` (set automatically) | Browser sessions after form login |
+
+LLM example: instead of `learn https://api.example.com/llms.txt`, use:
+
+```
+learn https://api.example.com/llms.txt?access_token=sk_your_token
+```
+
+### Browser flow
+
+Visiting `/` without a token returns a small login form. Submit the token once and an `HttpOnly`, `SameSite=Lax`, `Secure` cookie is set so the rest of the docs load normally without rewriting URLs.
+
+### Auth options
+
+```typescript
+{
+  auth: {
+    token: process.env.SWAGENT_TOKEN,   // required to enable
+    paramName: 'access_token',           // query param (default)
+    cookieName: 'swagent_token',         // browser cookie (default)
+    formField: 'token',                  // POST form field (default)
+    cookieMaxAgeSec: 60 * 60 * 24 * 7,   // 7 days
+    cookieSecure: true,                  // omit Secure flag in local dev
+  }
+}
+```
+
+### Notes
+
+- Token comparison uses constant-time equality to avoid timing attacks.
+- 401 responses return `Cache-Control: no-store` and never get cached.
+- The CLI generates static files, so it cannot enforce auth. Serve those files behind your existing auth (nginx basic auth, Cloudflare Access, etc).
+- Auth applies only to the four swagent routes. Your real API endpoints keep their own auth (Bearer/JWT/API key/whatever you already use).
 
 ## Caching
 

@@ -2,13 +2,16 @@ import type {
   OpenAPISpec,
   EndpointInfo,
   ParameterObject,
+  ResolvedRoutes,
   ResponseObject,
   SchemaObject,
   SecurityRequirement,
   SecuritySchemes,
+  SwagentOptions,
 } from './types.js';
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
+const METHOD_ORDER: Record<string, number> = { get: 0, post: 1, put: 2, patch: 3, delete: 4 };
 
 export function escapeHtml(text: string): string {
   return text
@@ -22,6 +25,14 @@ export function extractFirstParagraph(text: string): string {
   return text.split(/\n\n/)[0].replace(/\n/g, ' ').trim();
 }
 
+/**
+ * Group endpoints by tag.
+ *
+ * Groups are returned alphabetically (case-insensitive). Endpoints inside each
+ * group are sorted by path, then by HTTP method (GET, POST, PUT, PATCH, DELETE).
+ * Stable order makes long docs predictable to scan and keeps anchor links stable
+ * across spec changes.
+ */
 export function groupPathsByTag(spec: OpenAPISpec): Record<string, EndpointInfo[]> {
   const groups: Record<string, EndpointInfo[]> = {};
 
@@ -52,7 +63,21 @@ export function groupPathsByTag(spec: OpenAPISpec): Record<string, EndpointInfo[
     }
   }
 
-  return groups;
+  for (const tag of Object.keys(groups)) {
+    groups[tag].sort((a, b) => {
+      const byPath = a.path.localeCompare(b.path);
+      if (byPath !== 0) return byPath;
+      return (METHOD_ORDER[a.method] ?? 99) - (METHOD_ORDER[b.method] ?? 99);
+    });
+  }
+
+  const sorted: Record<string, EndpointInfo[]> = {};
+  for (const tag of Object.keys(groups).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  )) {
+    sorted[tag] = groups[tag];
+  }
+  return sorted;
 }
 
 export function formatSecurity(
@@ -172,6 +197,35 @@ export function extractParamsByLocation(
   location: 'path' | 'query',
 ): ParameterObject[] {
   return parameters.filter((p) => p.in === location);
+}
+
+/**
+ * Resolve effective route paths from `SwagentOptions`. Honors `routes.*`
+ * overrides, `routes.* === false` (disabled → `null`), and prepends
+ * `options.prefix` to every non-null result.
+ *
+ * Example: `resolveRoutes({ prefix: '/docs', routes: { humanDocs: false } })`
+ * returns `{ llmsTxt: '/docs/llms.txt', humanDocs: null, openapi: '/docs/openapi.json', landing: '/docs/' }`.
+ *
+ * Used by the HTML generator so its self-references (header `<link rel="alternate">`
+ * and the format-card footer) match the actually mounted paths.
+ */
+export function resolveRoutes(options: SwagentOptions = {}): ResolvedRoutes {
+  const r = options.routes ?? {};
+  const prefix = (options.prefix ?? '').replace(/\/+$/, '');
+  const join = (path: string): string => {
+    if (!prefix) return path;
+    if (path === '/') return prefix || '/';
+    return path.startsWith('/') ? `${prefix}${path}` : `${prefix}/${path}`;
+  };
+  const norm = (cfg: string | false | undefined, def: string): string | null =>
+    cfg === false ? null : join(typeof cfg === 'string' ? cfg : def);
+  return {
+    llmsTxt: norm(r.llmsTxt, '/llms.txt'),
+    humanDocs: norm(r.humanDocs, '/to-humans.md'),
+    openapi: norm(r.openapi, '/openapi.json'),
+    landing: norm(r.landing, '/'),
+  };
 }
 
 /**

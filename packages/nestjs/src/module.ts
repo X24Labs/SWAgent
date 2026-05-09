@@ -4,9 +4,10 @@ import {
   Controller,
   Injectable,
   Get,
-  Header,
+  Post,
   Headers,
   Inject,
+  Req,
   Res,
   type DynamicModule,
 } from '@nestjs/common';
@@ -15,6 +16,18 @@ import {
   fallbackOutput,
   computeEtag,
   estimateTokens,
+  resolveAuth,
+  isAuthorized,
+  safeEqual,
+  parseCookies,
+  parseFormBody,
+  buildSessionCookie,
+  renderLoginForm,
+  renderUnauthorized,
+  resolveBaseUrl,
+  substituteBaseUrl,
+  type AuthRequest,
+  type ResolvedAuth,
   type SwagentOptions,
   type SwagentOutput,
   type OpenAPISpec,
@@ -30,13 +43,43 @@ export interface SwagentSetupOptions extends SwagentOptions {
   path?: string;
 }
 
+function reqToAuth(req: any): AuthRequest {
+  return {
+    query: req.query as Record<string, string | string[] | undefined>,
+    headers: req.headers as Record<string, string | string[] | undefined>,
+    cookies: parseCookies(req.headers?.cookie),
+  };
+}
+
+function reqToBaseUrl(req: any): string {
+  const h = req.headers ?? {};
+  return resolveBaseUrl({
+    host: h.host,
+    forwardedHost: h['x-forwarded-host'],
+    forwardedProto: h['x-forwarded-proto'],
+    protocol: req.protocol,
+    encrypted: req.secure === true,
+  });
+}
+
 @Injectable()
 export class SwagentService {
-  private cached: (SwagentOutput & { etags: { llmsTxt: string; humanDocs: string; htmlLanding: string; openapi: string } }) | null = null;
+  private cached:
+    | (SwagentOutput & { etags: { llmsTxt: string; humanDocs: string; htmlLanding: string; openapi: string } })
+    | null = null;
+  readonly auth: ResolvedAuth;
 
-  constructor(
-    @Inject(SWAGENT_OPTIONS) private readonly options: SwagentNestOptions,
-  ) {}
+  constructor(@Inject(SWAGENT_OPTIONS) private readonly options: SwagentNestOptions) {
+    this.auth = resolveAuth(options.auth);
+  }
+
+  loginTitle(): string {
+    return this.options.title ?? this.options.spec.info?.title ?? 'API Documentation';
+  }
+
+  getOptions(): SwagentNestOptions {
+    return this.options;
+  }
 
   getContent(): SwagentOutput & { etags: { llmsTxt: string; humanDocs: string; htmlLanding: string; openapi: string } } {
     if (!this.cached) {
@@ -55,7 +98,11 @@ export class SwagentService {
         console.error('swagent: failed to generate docs', err);
         const fb = fallbackOutput();
         let openapiEtag: string;
-        try { openapiEtag = computeEtag(JSON.stringify(this.options.spec)); } catch { openapiEtag = computeEtag('{}'); }
+        try {
+          openapiEtag = computeEtag(JSON.stringify(this.options.spec));
+        } catch {
+          openapiEtag = computeEtag('{}');
+        }
         this.cached = {
           ...fb,
           etags: {
@@ -77,70 +124,136 @@ export class SwagentService {
 
 @Controller()
 class SwagentController {
-  constructor(
-    @Inject(SwagentService) private readonly swagent: SwagentService,
-  ) {}
+  constructor(@Inject(SwagentService) private readonly swagent: SwagentService) {}
+
+  private denyData(res: any): void {
+    const auth = this.swagent.auth;
+    res.status(401)
+      .set('Content-Type', 'text/plain; charset=utf-8')
+      .set('Cache-Control', 'no-store')
+      .send(renderUnauthorized(auth));
+  }
 
   @Get()
-  @Header('Cache-Control', 'public, max-age=3600')
-  landing(@Headers('accept') accept: string, @Headers('if-none-match') inm: string, @Res() res: any): void {
+  landing(
+    @Headers('accept') accept: string,
+    @Headers('if-none-match') inm: string,
+    @Req() req: any,
+    @Res() res: any,
+  ): void {
+    const auth = this.swagent.auth;
     const c = this.swagent.getContent();
     const wantsMarkdown = typeof accept === 'string' && accept.includes('text/markdown');
 
+    if (auth.enabled && !isAuthorized(reqToAuth(req), auth)) {
+      if (wantsMarkdown) return this.denyData(res);
+      const opts = this.swagent.getOptions();
+      res.status(401)
+        .set('Cache-Control', 'no-store')
+        .set('Content-Type', 'text/html; charset=utf-8')
+        .send(renderLoginForm({
+          title: this.swagent.loginTitle(),
+          theme: opts.theme,
+          formField: auth.formField,
+          action: '',
+        }));
+      return;
+    }
+
+    const detected = reqToBaseUrl(req);
+
     if (wantsMarkdown) {
-      const tokens = estimateTokens(c.llmsTxt);
+      const body = substituteBaseUrl(c.llmsTxt, detected);
+      const tokens = estimateTokens(body);
       res.set('Content-Type', 'text/markdown; charset=utf-8');
       res.set('x-markdown-tokens', String(tokens));
       res.set('Vary', 'accept');
       res.set('ETag', c.etags.llmsTxt);
+      res.set('Cache-Control', 'public, max-age=3600');
       if (inm === c.etags.llmsTxt) {
         res.status(304).end();
         return;
       }
-      res.send(c.llmsTxt);
+      res.send(body);
     } else {
       res.set('Content-Type', 'text/html; charset=utf-8');
       res.set('Vary', 'accept');
       res.set('ETag', c.etags.htmlLanding);
+      res.set('Cache-Control', 'public, max-age=3600');
       if (inm === c.etags.htmlLanding) {
         res.status(304).end();
         return;
       }
-      res.send(c.htmlLanding);
+      res.send(substituteBaseUrl(c.htmlLanding, detected));
     }
   }
 
+  @Post()
+  landingLogin(@Req() req: any, @Res() res: any): void {
+    const auth = this.swagent.auth;
+    if (!auth.enabled) {
+      res.status(404).end();
+      return;
+    }
+    const submitted = String((req.body ?? {})[auth.formField] ?? '');
+    if (!submitted || !safeEqual(submitted, auth.token)) {
+      const opts = this.swagent.getOptions();
+      res.status(401)
+        .set('Cache-Control', 'no-store')
+        .set('Content-Type', 'text/html; charset=utf-8')
+        .send(renderLoginForm({
+          error: true,
+          title: this.swagent.loginTitle(),
+          theme: opts.theme,
+          formField: auth.formField,
+          action: '',
+        }));
+      return;
+    }
+    res.status(303)
+      .set('Set-Cookie', buildSessionCookie(auth))
+      .set('Location', req.originalUrl || '/')
+      .set('Cache-Control', 'no-store')
+      .end();
+  }
+
   @Get('llms.txt')
-  @Header('Content-Type', 'text/plain; charset=utf-8')
-  @Header('Cache-Control', 'public, max-age=3600')
-  llmsTxt(@Headers('if-none-match') inm: string, @Res() res: any): void {
+  llmsTxt(@Headers('if-none-match') inm: string, @Req() req: any, @Res() res: any): void {
+    const auth = this.swagent.auth;
+    if (auth.enabled && !isAuthorized(reqToAuth(req), auth)) return this.denyData(res);
     const c = this.swagent.getContent();
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600');
     res.set('ETag', c.etags.llmsTxt);
     if (inm === c.etags.llmsTxt) {
       res.status(304).end();
       return;
     }
-    res.send(c.llmsTxt);
+    res.send(substituteBaseUrl(c.llmsTxt, reqToBaseUrl(req)));
   }
 
   @Get('to-humans.md')
-  @Header('Content-Type', 'text/markdown; charset=utf-8')
-  @Header('Cache-Control', 'public, max-age=3600')
-  humanDocs(@Headers('if-none-match') inm: string, @Res() res: any): void {
+  humanDocs(@Headers('if-none-match') inm: string, @Req() req: any, @Res() res: any): void {
+    const auth = this.swagent.auth;
+    if (auth.enabled && !isAuthorized(reqToAuth(req), auth)) return this.denyData(res);
     const c = this.swagent.getContent();
+    res.set('Content-Type', 'text/markdown; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600');
     res.set('ETag', c.etags.humanDocs);
     if (inm === c.etags.humanDocs) {
       res.status(304).end();
       return;
     }
-    res.send(c.humanDocs);
+    res.send(substituteBaseUrl(c.humanDocs, reqToBaseUrl(req)));
   }
 
   @Get('openapi.json')
-  @Header('Content-Type', 'application/json; charset=utf-8')
-  @Header('Cache-Control', 'public, max-age=3600')
-  openapi(@Headers('if-none-match') inm: string, @Res() res: any): void {
+  openapi(@Headers('if-none-match') inm: string, @Req() req: any, @Res() res: any): void {
+    const auth = this.swagent.auth;
+    if (auth.enabled && !isAuthorized(reqToAuth(req), auth)) return this.denyData(res);
     const c = this.swagent.getContent();
+    res.set('Content-Type', 'application/json; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600');
     res.set('ETag', c.etags.openapi);
     if (inm === c.etags.openapi) {
       res.status(304).end();
@@ -230,8 +343,10 @@ export class SwagentModule {
       output = fallbackOutput();
     }
     const routes = options.routes || {};
+    const auth = resolveAuth(options.auth);
     const prefix = (options.path || '').replace(/\/$/, '');
     const httpAdapter = app.getHttpAdapter();
+    const loginTitle = options.title ?? spec.info?.title ?? 'API Documentation';
 
     let openapiEtag: string;
     try { openapiEtag = computeEtag(JSON.stringify(spec)); } catch { openapiEtag = computeEtag('{}'); }
@@ -242,15 +357,27 @@ export class SwagentModule {
       openapi: openapiEtag,
     };
 
-    const serve = (path: string, contentType: string, body: string, etag: string) => {
+    function gateData(req: any, res: any): boolean {
+      if (!auth.enabled) return true;
+      if (isAuthorized(reqToAuth(req), auth)) return true;
+      res.status(401)
+        .set('Content-Type', 'text/plain; charset=utf-8')
+        .set('Cache-Control', 'no-store')
+        .send(renderUnauthorized(auth));
+      return false;
+    }
+
+    const serve = (path: string, contentType: string, body: string, etag: string, sub: boolean) => {
       httpAdapter.get(path, (req: any, res: any) => {
+        if (!gateData(req, res)) return;
         res.set('ETag', etag);
         res.set('Cache-Control', 'public, max-age=3600');
         if (req.get('If-None-Match') === etag) {
           res.status(304).end();
           return;
         }
-        res.type(contentType).send(body);
+        const out = sub ? substituteBaseUrl(body, reqToBaseUrl(req)) : body;
+        res.type(contentType).send(out);
       });
     };
 
@@ -263,8 +390,30 @@ export class SwagentModule {
         const acceptHeader = req.get('Accept');
         const wantsMarkdown = typeof acceptHeader === 'string' && acceptHeader.includes('text/markdown');
 
+        if (auth.enabled && !isAuthorized(reqToAuth(req), auth)) {
+          if (wantsMarkdown) {
+            res.status(401)
+              .set('Content-Type', 'text/plain; charset=utf-8')
+              .set('Cache-Control', 'no-store')
+              .send(renderUnauthorized(auth));
+            return;
+          }
+          res.status(401)
+            .set('Cache-Control', 'no-store')
+            .set('Content-Type', 'text/html; charset=utf-8')
+            .send(renderLoginForm({
+              title: loginTitle,
+              theme: options.theme,
+              formField: auth.formField,
+            }));
+          return;
+        }
+
+        const detected = reqToBaseUrl(req);
+
         if (wantsMarkdown) {
-          const tokens = estimateTokens(output.llmsTxt);
+          const body = substituteBaseUrl(output.llmsTxt, detected);
+          const tokens = estimateTokens(body);
           res.set('Content-Type', 'text/markdown; charset=utf-8');
           res.set('x-markdown-tokens', String(tokens));
           res.set('Vary', 'accept');
@@ -274,7 +423,7 @@ export class SwagentModule {
             res.status(304).end();
             return;
           }
-          res.send(output.llmsTxt);
+          res.send(body);
         } else {
           res.set('Content-Type', 'text/html; charset=utf-8');
           res.set('Vary', 'accept');
@@ -284,9 +433,37 @@ export class SwagentModule {
             res.status(304).end();
             return;
           }
-          res.send(output.htmlLanding);
+          res.send(substituteBaseUrl(output.htmlLanding, detected));
         }
       });
+
+      if (auth.enabled && typeof httpAdapter.post === 'function') {
+        httpAdapter.post(p, (req: any, res: any) => {
+          let submitted = '';
+          if (req.body && typeof req.body === 'object') {
+            submitted = String((req.body as Record<string, unknown>)[auth.formField] ?? '');
+          } else if (typeof req.body === 'string') {
+            submitted = parseFormBody(req.body)[auth.formField] ?? '';
+          }
+          if (!submitted || !safeEqual(submitted, auth.token)) {
+            res.status(401)
+              .set('Cache-Control', 'no-store')
+              .set('Content-Type', 'text/html; charset=utf-8')
+              .send(renderLoginForm({
+                error: true,
+                title: loginTitle,
+                theme: options.theme,
+                formField: auth.formField,
+              }));
+            return;
+          }
+          res.status(303)
+            .set('Set-Cookie', buildSessionCookie(auth))
+            .set('Location', req.originalUrl || p)
+            .set('Cache-Control', 'no-store')
+            .end();
+        });
+      }
     }
 
     if (routes.llmsTxt !== false) {
@@ -294,7 +471,7 @@ export class SwagentModule {
         typeof routes.llmsTxt === 'string'
           ? routes.llmsTxt
           : `${prefix}/llms.txt`;
-      serve(p, 'text/plain; charset=utf-8', output.llmsTxt, etags.llmsTxt);
+      serve(p, 'text/plain; charset=utf-8', output.llmsTxt, etags.llmsTxt, true);
     }
 
     if (routes.humanDocs !== false) {
@@ -302,7 +479,7 @@ export class SwagentModule {
         typeof routes.humanDocs === 'string'
           ? routes.humanDocs
           : `${prefix}/to-humans.md`;
-      serve(p, 'text/markdown; charset=utf-8', output.humanDocs, etags.humanDocs);
+      serve(p, 'text/markdown; charset=utf-8', output.humanDocs, etags.humanDocs, true);
     }
 
     if (routes.openapi !== false) {
@@ -312,7 +489,7 @@ export class SwagentModule {
           : `${prefix}/openapi.json`;
       let specJson: string;
       try { specJson = JSON.stringify(spec); } catch { specJson = '{}'; }
-      serve(p, 'application/json; charset=utf-8', specJson, etags.openapi);
+      serve(p, 'application/json; charset=utf-8', specJson, etags.openapi, false);
     }
   }
 }

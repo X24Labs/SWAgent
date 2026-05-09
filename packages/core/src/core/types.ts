@@ -20,8 +20,25 @@ export interface SwagentOptions {
   theme?: 'dark' | 'light' | 'auto';
   /** Route paths configuration */
   routes?: SwagentRoutes;
+  /**
+   * Path prefix the host app mounts swagent under (e.g. '/docs'). Used so
+   * the HTML landing's self-references (`<link rel="alternate">`,
+   * format-link footer) resolve correctly when not at the framework root.
+   * Adapters do NOT use this for routing — that's the host framework's job.
+   */
+  prefix?: string;
   /** Landing page configuration */
   landing?: SwagentLandingConfig;
+  /** Access token gate. If set (or env SWAGENT_TOKEN present), all routes require the token. */
+  auth?: import('./auth.js').SwagentAuthOptions;
+}
+
+/** Resolved route paths with prefix applied; `null` means the route is disabled. */
+export interface ResolvedRoutes {
+  llmsTxt: string | null;
+  humanDocs: string | null;
+  openapi: string | null;
+  landing: string | null;
 }
 
 export interface SwagentOutput {
